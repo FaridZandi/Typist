@@ -52,6 +52,45 @@
             <span id="finalAccuracy">100</span>% accuracy.
           </p>
         </div>
+
+        <section class="heatmap-section" aria-labelledby="heatmapTitle">
+          <div class="heatmap-header">
+            <div>
+              <h2 id="heatmapTitle">Text heatmap</h2>
+              <p><span id="heatmapRuns">0</span> completed runs recorded</p>
+            </div>
+            <button id="clearHistoryButton" type="button" class="secondary-button">
+              Clear history
+            </button>
+          </div>
+
+          <div class="legend" aria-hidden="true">
+            <span>Lowest</span>
+            <div class="legend-bar"></div>
+            <span>100%</span>
+          </div>
+
+          <div
+            id="heatmapDisplay"
+            class="heatmap-display"
+            aria-label="Per character accuracy heatmap"
+          ></div>
+        </section>
+
+        <section class="speed-section" aria-labelledby="speedChartTitle">
+          <div class="speed-header">
+            <div>
+              <h2 id="speedChartTitle">Letter speed</h2>
+              <p>Average WPM for each character position across recorded runs</p>
+            </div>
+          </div>
+
+          <div
+            id="speedChart"
+            class="heatmap-display"
+            aria-label="Per character average typing speed heatmap"
+          ></div>
+        </section>
       </section>
     </main>
 

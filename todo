@@ -1,0 +1,3 @@
+[ ] The first letter in the letter speed is not colored for some reason. It remains gray. 
+[ ] The letter typing speed data should probably be sent through a windowed average before being recorded. (The typing speed of each letter is the average of 5 letters behind it, and itself). There should probably also be a cap.
+[ ] The system should support different texts. The recorded data and metrics, will be recorded on a text-to-text basis. There will be an option for selecting the number that you want, or a roll-a-dice option. 

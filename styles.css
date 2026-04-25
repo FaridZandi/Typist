@@ -32,6 +32,7 @@ body {
 
 .app-shell {
   width: min(980px, calc(100% - 32px));
+  max-width: calc(100% - 32px);
   min-height: 100vh;
   margin: 0 auto;
   display: grid;
@@ -41,6 +42,7 @@ body {
 
 .practice-panel {
   width: 100%;
+  min-width: 0;
   background: var(--panel);
   border: 1px solid rgba(216, 224, 232, 0.8);
   border-radius: 8px;
@@ -88,6 +90,15 @@ button {
 
 button:hover {
   background: var(--accent-strong);
+}
+
+.secondary-button {
+  background: #e8eef3;
+  color: var(--ink);
+}
+
+.secondary-button:hover {
+  background: #d8e0e8;
 }
 
 .stats-grid {
@@ -151,6 +162,11 @@ button:hover {
   background: var(--bad);
 }
 
+.char.corrected {
+  color: #16202a;
+  background: #f3c74f;
+}
+
 .char.current {
   background: var(--current);
   color: #16202a;
@@ -206,6 +222,86 @@ button:hover {
   color: var(--muted);
 }
 
+.heatmap-section {
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+}
+
+.speed-section {
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+  min-width: 0;
+}
+
+.heatmap-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 14px;
+}
+
+.heatmap-header h2 {
+  font-size: 1.25rem;
+}
+
+.speed-header h2 {
+  font-size: 1.25rem;
+}
+
+.heatmap-header p {
+  margin-top: 6px;
+  color: var(--muted);
+}
+
+.speed-header p {
+  margin-top: 6px;
+  color: var(--muted);
+}
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.legend-bar {
+  width: 160px;
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--bad), #d8b334, var(--good));
+}
+
+.heatmap-display {
+  min-height: 170px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfe;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: clamp(1rem, 1.8vw, 1.18rem);
+  line-height: 1.9;
+}
+
+.heatmap-char {
+  display: inline;
+  border-radius: 3px;
+  padding: 1px 0;
+  color: #101820;
+}
+
+.heatmap-char.untracked {
+  background: #e8eef3;
+  color: var(--muted);
+}
+
 @media (max-width: 680px) {
   .top-bar {
     align-items: stretch;
@@ -223,5 +319,14 @@ button:hover {
   .text-display {
     min-height: 240px;
     padding: 16px;
+  }
+
+  .heatmap-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .legend-bar {
+    flex: 1;
   }
 }
