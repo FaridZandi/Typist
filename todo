@@ -1,3 +1,10 @@
 [ ] The first letter in the letter speed is not colored for some reason. It remains gray. 
-[ ] The letter typing speed data should probably be sent through a windowed average before being recorded. (The typing speed of each letter is the average of 5 letters behind it, and itself). There should probably also be a cap.
 [ ] The system should support different texts. The recorded data and metrics, will be recorded on a text-to-text basis. There will be an option for selecting the number that you want, or a roll-a-dice option. 
+    * text prompts should be moved to a different file, or files. So that the script doesn't contain unnecessary info. 
+[ ] Add a basic readme. 
+
+---------------------------------------------
+[*] show time as a progress bar above the typing panel, which feels up over time
+[*] for each test, the typing speed, the accuracy, and consistency (defined properly) will be recorded (for the whole text.) Add a new section to the bottom, showing the progression of these metrics over time with a line plot. X axis will the time and date. Use a proper plotting third party library for the plots.
+[*] The letter typing speed data should probably be sent through a windowed average before being recorded. (The typing speed of each letter is the average of 5 letters behind it, and itself). 
+[*] There's an issues, where the parts of the text that are practiced less often, will have smaller data points. These parts will have very extreme numbers (let's say a part towards the end of the text, only seen once, is either 100 percent correct or 100 percent incorrect. This ruins the ranges seen in the heatmap). Therefore, there should be a limit, where the heat maps are drawn for ranges of the text that are seen across at least 50 percent of the attempts. 
