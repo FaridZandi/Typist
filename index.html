@@ -32,6 +32,17 @@
           </div>
         </div>
 
+        <div
+          class="timer-progress"
+          role="progressbar"
+          aria-label="Elapsed typing time"
+          aria-valuemin="0"
+          aria-valuemax="60"
+          aria-valuenow="0"
+        >
+          <div id="timerProgressFill" class="timer-progress-fill"></div>
+        </div>
+
         <div id="textDisplay" class="text-display" aria-label="Typing prompt"></div>
 
         <label class="typing-label" for="typingInput">Type here</label>
@@ -91,9 +102,29 @@
             aria-label="Per character average typing speed heatmap"
           ></div>
         </section>
+
+        <section class="progress-section" aria-labelledby="progressTitle">
+          <div class="progress-header">
+            <div>
+              <h2 id="progressTitle">Run progress</h2>
+              <p>
+                Speed, accuracy, and consistency for each completed typing test
+              </p>
+            </div>
+          </div>
+
+          <div class="progress-chart-wrap">
+            <canvas
+              id="progressChart"
+              aria-label="Typing metrics over time"
+              role="img"
+            ></canvas>
+          </div>
+        </section>
       </section>
     </main>
 
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.min.js"></script>
     <script src="script.js"></script>
   </body>
 </html>

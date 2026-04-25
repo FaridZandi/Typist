@@ -9,6 +9,8 @@ const promptText = [
 
 const runLengthSeconds = 60;
 const storageKey = `typist-heatmap:${promptText}`;
+const minimumCoverageRatio = 0.5;
+const speedSmoothingPreviousLetters = 5;
 
 const textDisplay = document.querySelector("#textDisplay");
 const typingInput = document.querySelector("#typingInput");
@@ -23,6 +25,9 @@ const finalAccuracy = document.querySelector("#finalAccuracy");
 const heatmapDisplay = document.querySelector("#heatmapDisplay");
 const heatmapRuns = document.querySelector("#heatmapRuns");
 const speedChart = document.querySelector("#speedChart");
+const progressChartCanvas = document.querySelector("#progressChart");
+const timerProgress = document.querySelector(".timer-progress");
+const timerProgressFill = document.querySelector("#timerProgressFill");
 
 let started = false;
 let finished = false;
@@ -34,10 +39,12 @@ let runIntervals = new Map();
 let previousTypedLength = 0;
 let previousLetterTime = null;
 let heatmapStats = loadHeatmapStats();
+let progressChart = null;
 
 function createEmptyHeatmapStats() {
   return {
     runs: 0,
+    runHistory: [],
     characters: [...promptText].map(() => ({
       attempts: 0,
       mistakes: 0,
@@ -65,6 +72,15 @@ function loadHeatmapStats() {
           ? stats.totalIntervalMs
           : 0,
       }));
+      savedStats.runHistory = Array.isArray(savedStats.runHistory)
+        ? savedStats.runHistory.filter(
+            (run) =>
+              typeof run.completedAt === "string" &&
+              Number.isFinite(run.wordsPerMinute) &&
+              Number.isFinite(run.accuracy) &&
+              Number.isFinite(run.consistency),
+          )
+        : [];
 
       return savedStats;
     }
@@ -110,7 +126,7 @@ function renderPrompt(typedText = "") {
 function getCharacterAccuracy(index) {
   const stats = heatmapStats.characters[index];
 
-  if (!stats || stats.attempts === 0) {
+  if (!hasEnoughCoverage(stats)) {
     return null;
   }
 
@@ -134,7 +150,7 @@ function renderHeatmap() {
   heatmapRuns.textContent = heatmapStats.runs;
 
   const recordedAccuracies = heatmapStats.characters
-    .filter((stats) => stats.attempts > 0)
+    .filter((stats) => hasEnoughCoverage(stats))
     .map((stats) =>
       Math.round(((stats.attempts - stats.mistakes) / stats.attempts) * 100),
     );
@@ -149,7 +165,7 @@ function renderHeatmap() {
 
     if (accuracy === null) {
       span.classList.add("untracked");
-      span.title = "No runs recorded for this character";
+      span.title = getCoverageTitle(index);
     } else {
       span.style.backgroundColor = getHeatmapColor(accuracy, lowestAccuracy);
       span.title = `${accuracy}% accuracy across ${heatmapStats.characters[index].attempts} attempts`;
@@ -162,7 +178,11 @@ function renderHeatmap() {
 function getAverageLetterWpm(index) {
   const stats = heatmapStats.characters[index];
 
-  if (!stats || stats.intervalSamples === 0 || stats.totalIntervalMs <= 0) {
+  if (
+    !hasEnoughCoverage(stats) ||
+    stats.intervalSamples === 0 ||
+    stats.totalIntervalMs <= 0
+  ) {
     return null;
   }
 
@@ -191,7 +211,7 @@ function renderSpeedChart() {
 
     if (speed === null) {
       span.classList.add("untracked");
-      span.title = `${displayChar}: no timing data`;
+      span.title = `${displayChar}: ${getCoverageTitle(index)}`;
     } else {
       span.style.backgroundColor = getSpeedColor(
         speed,
@@ -214,6 +234,151 @@ function getSpeedColor(speed, lowestSpeed, highestSpeed) {
   const hue = Math.round(Math.max(0, Math.min(1, normalizedSpeed)) * 120);
 
   return `hsl(${hue} 68% 72%)`;
+}
+
+function renderProgressChart() {
+  if (!window.Chart || !progressChartCanvas) {
+    return;
+  }
+
+  const chartData = {
+    datasets: [
+      {
+        label: "Speed (WPM)",
+        data: heatmapStats.runHistory.map((run) => ({
+          x: new Date(run.completedAt).getTime(),
+          y: run.wordsPerMinute,
+        })),
+        borderColor: "#0f766e",
+        backgroundColor: "rgba(15, 118, 110, 0.12)",
+        tension: 0.25,
+        parsing: false,
+        yAxisID: "wpm",
+      },
+      {
+        label: "Accuracy (%)",
+        data: heatmapStats.runHistory.map((run) => ({
+          x: new Date(run.completedAt).getTime(),
+          y: run.accuracy,
+        })),
+        borderColor: "#15803d",
+        backgroundColor: "rgba(21, 128, 61, 0.12)",
+        tension: 0.25,
+        parsing: false,
+        yAxisID: "percent",
+      },
+      {
+        label: "Consistency (%)",
+        data: heatmapStats.runHistory.map((run) => ({
+          x: new Date(run.completedAt).getTime(),
+          y: run.consistency,
+        })),
+        borderColor: "#c62828",
+        backgroundColor: "rgba(198, 40, 40, 0.12)",
+        tension: 0.25,
+        parsing: false,
+        yAxisID: "percent",
+      },
+    ],
+  };
+
+  if (progressChart) {
+    progressChart.data = chartData;
+    progressChart.update();
+    return;
+  }
+
+  progressChart = new Chart(progressChartCanvas, {
+    type: "line",
+    data: chartData,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: {
+        intersect: false,
+        mode: "index",
+      },
+      plugins: {
+        legend: {
+          position: "bottom",
+        },
+        tooltip: {
+          callbacks: {
+            afterTitle(items) {
+              return formatChartTimestamp(items[0].parsed.x);
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          type: "linear",
+          title: {
+            display: true,
+            text: "Completed at",
+          },
+          ticks: {
+            callback(value) {
+              return formatChartTimestamp(value);
+            },
+            maxRotation: 45,
+            minRotation: 0,
+          },
+        },
+        wpm: {
+          type: "linear",
+          position: "left",
+          beginAtZero: true,
+          title: {
+            display: true,
+            text: "WPM",
+          },
+        },
+        percent: {
+          type: "linear",
+          position: "right",
+          beginAtZero: true,
+          max: 100,
+          grid: {
+            drawOnChartArea: false,
+          },
+          title: {
+            display: true,
+            text: "Percent",
+          },
+        },
+      },
+    },
+  });
+}
+
+function formatChartTimestamp(timestamp) {
+  return new Date(timestamp).toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function hasEnoughCoverage(stats) {
+  if (!stats || heatmapStats.runs === 0) {
+    return false;
+  }
+
+  return stats.attempts / heatmapStats.runs >= minimumCoverageRatio;
+}
+
+function getCoverageTitle(index) {
+  const stats = heatmapStats.characters[index];
+
+  if (!stats || stats.attempts === 0) {
+    return "No runs recorded for this character";
+  }
+
+  const requiredAttempts = Math.ceil(heatmapStats.runs * minimumCoverageRatio);
+
+  return `${stats.attempts}/${heatmapStats.runs} runs recorded; needs ${requiredAttempts} for heatmap`;
 }
 
 function recordCurrentMistakes() {
@@ -269,6 +434,16 @@ function updateStats() {
   const { wordsPerMinute, accuracy } = getMetrics();
   speedValue.textContent = wordsPerMinute;
   accuracyValue.textContent = accuracy;
+  updateTimerProgress();
+}
+
+function updateTimerProgress() {
+  const elapsedSeconds = runLengthSeconds - secondsLeft;
+  const elapsedRatio = elapsedSeconds / runLengthSeconds;
+  const elapsedPercent = Math.max(0, Math.min(100, elapsedRatio * 100));
+
+  timerProgressFill.style.setProperty("--progress-width", `${elapsedPercent}%`);
+  timerProgress.setAttribute("aria-valuenow", String(elapsedSeconds));
 }
 
 function finishRun() {
@@ -290,6 +465,10 @@ function finishRun() {
 }
 
 function commitRunToHeatmap() {
+  const smoothedRunIntervals = getSmoothedRunIntervals();
+  const { wordsPerMinute, accuracy } = getMetrics();
+  const consistency = getRunConsistency(smoothedRunIntervals);
+
   runAttempts.forEach((index) => {
     if (!heatmapStats.characters[index]) return;
 
@@ -300,17 +479,77 @@ function commitRunToHeatmap() {
     }
   });
 
-  runIntervals.forEach((intervalMs, index) => {
+  smoothedRunIntervals.forEach((intervalMs, index) => {
     if (!heatmapStats.characters[index] || intervalMs <= 0) return;
 
     heatmapStats.characters[index].intervalSamples += 1;
     heatmapStats.characters[index].totalIntervalMs += intervalMs;
   });
 
+  heatmapStats.runHistory.push({
+    completedAt: new Date().toISOString(),
+    wordsPerMinute,
+    accuracy,
+    consistency,
+  });
   heatmapStats.runs += 1;
   saveHeatmapStats();
   renderHeatmap();
   renderSpeedChart();
+  renderProgressChart();
+}
+
+function getSmoothedRunIntervals() {
+  const smoothedIntervals = new Map();
+  const sortedIntervals = [...runIntervals.entries()].sort(
+    ([firstIndex], [secondIndex]) => firstIndex - secondIndex,
+  );
+
+  sortedIntervals.forEach(([index]) => {
+    const windowStart = Math.max(1, index - speedSmoothingPreviousLetters);
+    const windowIntervals = [];
+
+    for (let windowIndex = windowStart; windowIndex <= index; windowIndex += 1) {
+      const intervalMs = runIntervals.get(windowIndex);
+
+      if (intervalMs !== undefined) {
+        windowIntervals.push(intervalMs);
+      }
+    }
+
+    if (windowIntervals.length > 0) {
+      const totalIntervalMs = windowIntervals.reduce(
+        (total, intervalMs) => total + intervalMs,
+        0,
+      );
+
+      smoothedIntervals.set(index, totalIntervalMs / windowIntervals.length);
+    }
+  });
+
+  return smoothedIntervals;
+}
+
+function getRunConsistency(intervals) {
+  const values = [...intervals.values()].filter((intervalMs) => intervalMs > 0);
+
+  if (values.length < 2) {
+    return 100;
+  }
+
+  const mean =
+    values.reduce((total, intervalMs) => total + intervalMs, 0) / values.length;
+  const variance =
+    values.reduce(
+      (total, intervalMs) => total + (intervalMs - mean) ** 2,
+      0,
+    ) / values.length;
+  const standardDeviation = Math.sqrt(variance);
+  const coefficientOfVariation = standardDeviation / mean;
+
+  return Math.round(
+    Math.max(0, Math.min(100, (1 - coefficientOfVariation) * 100)),
+  );
 }
 
 function startTimer(now) {
@@ -345,6 +584,7 @@ function resetRun() {
   timeRemaining.textContent = runLengthSeconds;
   speedValue.textContent = "0";
   accuracyValue.textContent = "100";
+  updateTimerProgress();
   resultPanel.hidden = true;
   renderPrompt();
   typingInput.focus();
@@ -375,8 +615,10 @@ clearHistoryButton.addEventListener("click", () => {
   saveHeatmapStats();
   renderHeatmap();
   renderSpeedChart();
+  renderProgressChart();
 });
 
 resetRun();
 renderHeatmap();
 renderSpeedChart();
+renderProgressChart();
