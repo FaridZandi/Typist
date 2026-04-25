@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Typist</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="practice-panel" aria-labelledby="app-title">
+        <header class="top-bar">
+          <div>
+            <h1 id="app-title">Typist</h1>
+            <p>60 second typing practice</p>
+          </div>
+          <button id="restartButton" type="button">Restart</button>
+        </header>
+
+        <div class="stats-grid" aria-live="polite">
+          <div class="stat">
+            <span>Time</span>
+            <strong id="timeRemaining">60</strong>
+          </div>
+          <div class="stat">
+            <span>Speed</span>
+            <strong><span id="speedValue">0</span> WPM</strong>
+          </div>
+          <div class="stat">
+            <span>Accuracy</span>
+            <strong><span id="accuracyValue">100</span>%</strong>
+          </div>
+        </div>
+
+        <div id="textDisplay" class="text-display" aria-label="Typing prompt"></div>
+
+        <label class="typing-label" for="typingInput">Type here</label>
+        <textarea
+          id="typingInput"
+          class="typing-input"
+          autocomplete="off"
+          autocapitalize="off"
+          spellcheck="false"
+          rows="5"
+          placeholder="Start typing to begin the timer"
+        ></textarea>
+
+        <div id="resultPanel" class="result-panel" hidden>
+          <h2>Run complete</h2>
+          <p>
+            <span id="finalSpeed">0</span> WPM with
+            <span id="finalAccuracy">100</span>% accuracy.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <script src="script.js"></script>
+  </body>
+</html>
