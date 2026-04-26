@@ -245,8 +245,8 @@ function renderProgressChart() {
     datasets: [
       {
         label: "Speed (WPM)",
-        data: heatmapStats.runHistory.map((run) => ({
-          x: new Date(run.completedAt).getTime(),
+        data: heatmapStats.runHistory.map((run, index) => ({
+          x: index + 1,
           y: run.wordsPerMinute,
         })),
         borderColor: "#0f766e",
@@ -257,8 +257,8 @@ function renderProgressChart() {
       },
       {
         label: "Accuracy (%)",
-        data: heatmapStats.runHistory.map((run) => ({
-          x: new Date(run.completedAt).getTime(),
+        data: heatmapStats.runHistory.map((run, index) => ({
+          x: index + 1,
           y: run.accuracy,
         })),
         borderColor: "#15803d",
@@ -269,8 +269,8 @@ function renderProgressChart() {
       },
       {
         label: "Consistency (%)",
-        data: heatmapStats.runHistory.map((run) => ({
-          x: new Date(run.completedAt).getTime(),
+        data: heatmapStats.runHistory.map((run, index) => ({
+          x: index + 1,
           y: run.consistency,
         })),
         borderColor: "#c62828",
@@ -305,7 +305,9 @@ function renderProgressChart() {
         tooltip: {
           callbacks: {
             afterTitle(items) {
-              return formatChartTimestamp(items[0].parsed.x);
+              const run = heatmapStats.runHistory[items[0].dataIndex];
+
+              return formatChartTimestamp(new Date(run.completedAt).getTime());
             },
           },
         },
@@ -315,12 +317,10 @@ function renderProgressChart() {
           type: "linear",
           title: {
             display: true,
-            text: "Completed at",
+            text: "Test number",
           },
           ticks: {
-            callback(value) {
-              return formatChartTimestamp(value);
-            },
+            stepSize: 1,
             maxRotation: 45,
             minRotation: 0,
           },
