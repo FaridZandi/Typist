@@ -19,6 +19,7 @@ const clearHistoryButton = document.querySelector("#clearHistoryButton");
 const timeRemaining = document.querySelector("#timeRemaining");
 const speedValue = document.querySelector("#speedValue");
 const accuracyValue = document.querySelector("#accuracyValue");
+const consistencyValue = document.querySelector("#consistencyValue");
 const resultPanel = document.querySelector("#resultPanel");
 const finalSpeed = document.querySelector("#finalSpeed");
 const finalAccuracy = document.querySelector("#finalAccuracy");
@@ -434,6 +435,7 @@ function updateStats() {
   const { wordsPerMinute, accuracy } = getMetrics();
   speedValue.textContent = wordsPerMinute;
   accuracyValue.textContent = accuracy;
+  consistencyValue.textContent = getRunConsistency(getSmoothedRunIntervals());
   updateTimerProgress();
 }
 
@@ -584,6 +586,7 @@ function resetRun() {
   timeRemaining.textContent = runLengthSeconds;
   speedValue.textContent = "0";
   accuracyValue.textContent = "100";
+  consistencyValue.textContent = "100";
   updateTimerProgress();
   resultPanel.hidden = true;
   renderPrompt();
