@@ -23,6 +23,8 @@ const consistencyValue = document.querySelector("#consistencyValue");
 const resultPanel = document.querySelector("#resultPanel");
 const finalSpeed = document.querySelector("#finalSpeed");
 const finalAccuracy = document.querySelector("#finalAccuracy");
+const lastRunHeatmap = document.querySelector("#lastRunHeatmap");
+const lastRunHistogramCanvas = document.querySelector("#lastRunHistogram");
 const heatmapDisplay = document.querySelector("#heatmapDisplay");
 const heatmapRuns = document.querySelector("#heatmapRuns");
 const speedChart = document.querySelector("#speedChart");
@@ -41,6 +43,9 @@ let previousTypedLength = 0;
 let previousLetterTime = null;
 let heatmapStats = loadHeatmapStats();
 let progressChart = null;
+let lastRunHistogram = null;
+let lastRunSpeeds = [];
+let lastRunHistogramBins = [];
 
 function createEmptyHeatmapStats() {
   return {
@@ -353,6 +358,219 @@ function renderProgressChart() {
   });
 }
 
+function renderLastRunResults(smoothedRunIntervals) {
+  lastRunSpeeds = getRunSpeedData(smoothedRunIntervals);
+  lastRunHistogramBins = getSpeedHistogramBins(lastRunSpeeds);
+
+  renderLastRunHeatmap();
+  renderLastRunHistogram();
+}
+
+function getRunSpeedData(intervals) {
+  return [...promptText].map((char, index) => {
+    const intervalMs = intervals.get(index);
+
+    if (!intervalMs || intervalMs <= 0) {
+      return {
+        char,
+        index,
+        speed: null,
+      };
+    }
+
+    return {
+      char,
+      index,
+      speed: Math.round(12000 / intervalMs),
+    };
+  });
+}
+
+function renderLastRunHeatmap(activeBinIndex = null) {
+  lastRunHeatmap.replaceChildren();
+
+  const speeds = lastRunSpeeds
+    .map((sample) => sample.speed)
+    .filter((speed) => speed !== null);
+  const lowestSpeed = Math.min(...speeds, 0);
+  const highestSpeed = Math.max(...speeds, 1);
+  const activeBin =
+    activeBinIndex === null ? null : lastRunHistogramBins[activeBinIndex];
+
+  lastRunSpeeds.forEach((sample) => {
+    const span = document.createElement("span");
+    const displayChar = sample.char === " " ? "space" : sample.char;
+
+    span.textContent = sample.char;
+    span.className = "heatmap-char";
+
+    if (sample.speed === null) {
+      span.classList.add("untracked");
+      span.title = `${displayChar}: no speed data`;
+    } else if (activeBin && !isSpeedInBin(sample.speed, activeBin)) {
+      span.classList.add("untracked");
+      span.title = `${displayChar}: ${sample.speed} WPM`;
+    } else {
+      span.style.backgroundColor = getSpeedColor(
+        sample.speed,
+        lowestSpeed,
+        highestSpeed,
+      );
+      span.title = `${displayChar}: ${sample.speed} WPM`;
+    }
+
+    lastRunHeatmap.append(span);
+  });
+}
+
+function getSpeedHistogramBins(speedSamples) {
+  const speeds = speedSamples
+    .map((sample) => sample.speed)
+    .filter((speed) => speed !== null);
+
+  if (speeds.length === 0) {
+    return [];
+  }
+
+  const lowestSpeed = Math.min(...speeds);
+  const highestSpeed = Math.max(...speeds);
+
+  if (lowestSpeed === highestSpeed) {
+    return [
+      {
+        min: lowestSpeed,
+        max: highestSpeed,
+        count: speeds.length,
+      },
+    ];
+  }
+
+  const binCount = Math.min(10, Math.max(1, Math.ceil(Math.sqrt(speeds.length))));
+  const range = highestSpeed - lowestSpeed;
+  const binSize = range / binCount;
+  const bins = Array.from({ length: binCount }, (_, index) => {
+    const min = lowestSpeed + index * binSize;
+    const max =
+      index === binCount - 1 ? highestSpeed : lowestSpeed + (index + 1) * binSize;
+
+    return {
+      min,
+      max,
+      count: 0,
+    };
+  });
+
+  speeds.forEach((speed) => {
+    const binIndex = Math.min(
+      bins.length - 1,
+      Math.floor((speed - lowestSpeed) / binSize),
+    );
+
+    bins[binIndex].count += 1;
+  });
+
+  return bins;
+}
+
+function isSpeedInBin(speed, bin) {
+  const isLastBin = bin === lastRunHistogramBins[lastRunHistogramBins.length - 1];
+
+  return isLastBin
+    ? speed >= bin.min && speed <= bin.max
+    : speed >= bin.min && speed < bin.max;
+}
+
+function formatSpeedRange(bin) {
+  if (bin.min === bin.max) {
+    return String(Math.round(bin.min));
+  }
+
+  return `${Math.round(bin.min)}-${Math.round(bin.max)}`;
+}
+
+function renderLastRunHistogram() {
+  if (!window.Chart || !lastRunHistogramCanvas) {
+    return;
+  }
+
+  const chartData = {
+    labels: lastRunHistogramBins.map((bin) => formatSpeedRange(bin)),
+    datasets: [
+      {
+        label: "Letters",
+        data: lastRunHistogramBins.map((bin) => bin.count),
+        backgroundColor: "rgba(15, 118, 110, 0.72)",
+        borderColor: "#0f766e",
+        borderWidth: 1,
+        barPercentage: 1,
+        categoryPercentage: 1,
+      },
+    ],
+  };
+
+  if (lastRunHistogram) {
+    lastRunHistogram.data = chartData;
+    lastRunHistogram.update();
+    return;
+  }
+
+  lastRunHistogram = new Chart(lastRunHistogramCanvas, {
+    type: "bar",
+    data: chartData,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: {
+        intersect: true,
+        mode: "nearest",
+      },
+      plugins: {
+        legend: {
+          display: false,
+        },
+        tooltip: {
+          callbacks: {
+            title(items) {
+              const bin = lastRunHistogramBins[items[0].dataIndex];
+
+              return `${formatSpeedRange(bin)} WPM`;
+            },
+            label(item) {
+              return `${item.parsed.y} letters`;
+            },
+          },
+        },
+      },
+      onHover(event, elements) {
+        if (elements.length === 0) {
+          renderLastRunHeatmap();
+          return;
+        }
+
+        renderLastRunHeatmap(elements[0].index);
+      },
+      scales: {
+        x: {
+          title: {
+            display: true,
+            text: "Letter speed range (WPM)",
+          },
+        },
+        y: {
+          beginAtZero: true,
+          ticks: {
+            precision: 0,
+          },
+          title: {
+            display: true,
+            text: "Letters",
+          },
+        },
+      },
+    },
+  });
+}
+
 function formatChartTimestamp(timestamp) {
   return new Date(timestamp).toLocaleString([], {
     month: "short",
@@ -455,7 +673,10 @@ function finishRun() {
   clearInterval(timerId);
   timerId = null;
   recordCurrentMistakes();
-  commitRunToHeatmap();
+  const smoothedRunIntervals = getSmoothedRunIntervals();
+  resultPanel.hidden = false;
+  renderLastRunResults(smoothedRunIntervals);
+  commitRunToHeatmap(smoothedRunIntervals);
   typingInput.disabled = true;
   renderPrompt(typingInput.value);
   updateStats();
@@ -463,11 +684,9 @@ function finishRun() {
   const { wordsPerMinute, accuracy } = getMetrics();
   finalSpeed.textContent = wordsPerMinute;
   finalAccuracy.textContent = accuracy;
-  resultPanel.hidden = false;
 }
 
-function commitRunToHeatmap() {
-  const smoothedRunIntervals = getSmoothedRunIntervals();
+function commitRunToHeatmap(smoothedRunIntervals = getSmoothedRunIntervals()) {
   const { wordsPerMinute, accuracy } = getMetrics();
   const consistency = getRunConsistency(smoothedRunIntervals);
 
@@ -589,6 +808,9 @@ function resetRun() {
   consistencyValue.textContent = "100";
   updateTimerProgress();
   resultPanel.hidden = true;
+  lastRunSpeeds = [];
+  lastRunHistogramBins = [];
+  lastRunHeatmap.replaceChildren();
   renderPrompt();
   typingInput.focus();
 }
@@ -619,6 +841,10 @@ clearHistoryButton.addEventListener("click", () => {
   renderHeatmap();
   renderSpeedChart();
   renderProgressChart();
+});
+
+lastRunHistogramCanvas.addEventListener("mouseleave", () => {
+  renderLastRunHeatmap();
 });
 
 resetRun();

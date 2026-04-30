@@ -66,6 +66,28 @@
             <span id="finalSpeed">0</span> WPM with
             <span id="finalAccuracy">100</span>% accuracy.
           </p>
+
+          <div class="run-detail-grid">
+            <section aria-labelledby="lastRunHeatmapTitle">
+              <h3 id="lastRunHeatmapTitle">Last run speed heatmap</h3>
+              <div
+                id="lastRunHeatmap"
+                class="heatmap-display run-heatmap-display"
+                aria-label="Last run per character speed heatmap"
+              ></div>
+            </section>
+
+            <section aria-labelledby="lastRunHistogramTitle">
+              <h3 id="lastRunHistogramTitle">Letter speed histogram</h3>
+              <div class="histogram-wrap">
+                <canvas
+                  id="lastRunHistogram"
+                  aria-label="Last run letter speed histogram"
+                  role="img"
+                ></canvas>
+              </div>
+            </section>
+          </div>
         </div>
 
         <section class="heatmap-section" aria-labelledby="heatmapTitle">

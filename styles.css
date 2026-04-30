@@ -235,8 +235,33 @@ button:hover {
   font-size: 1.25rem;
 }
 
+.result-panel h3 {
+  margin: 0 0 10px;
+  font-size: 1rem;
+}
+
 .result-panel p {
   color: var(--muted);
+}
+
+.run-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.7fr);
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.run-heatmap-display {
+  min-height: 220px;
+}
+
+.histogram-wrap {
+  position: relative;
+  height: 260px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfe;
 }
 
 .heatmap-section {
@@ -362,6 +387,10 @@ button:hover {
   .text-display {
     min-height: 240px;
     padding: 16px;
+  }
+
+  .run-detail-grid {
+    grid-template-columns: 1fr;
   }
 
   .heatmap-header {
