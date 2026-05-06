@@ -16,19 +16,21 @@ const textDisplay = document.querySelector("#textDisplay");
 const typingInput = document.querySelector("#typingInput");
 const restartButton = document.querySelector("#restartButton");
 const clearHistoryButton = document.querySelector("#clearHistoryButton");
-const timeRemaining = document.querySelector("#timeRemaining");
 const speedValue = document.querySelector("#speedValue");
 const accuracyValue = document.querySelector("#accuracyValue");
 const consistencyValue = document.querySelector("#consistencyValue");
+const scoreValue = document.querySelector("#scoreValue");
 const resultPanel = document.querySelector("#resultPanel");
 const finalSpeed = document.querySelector("#finalSpeed");
 const finalAccuracy = document.querySelector("#finalAccuracy");
+const finalScore = document.querySelector("#finalScore");
 const lastRunHeatmap = document.querySelector("#lastRunHeatmap");
 const lastRunHistogramCanvas = document.querySelector("#lastRunHistogram");
 const heatmapDisplay = document.querySelector("#heatmapDisplay");
 const heatmapRuns = document.querySelector("#heatmapRuns");
 const speedChart = document.querySelector("#speedChart");
 const progressChartCanvas = document.querySelector("#progressChart");
+const tradeoffChartCanvas = document.querySelector("#tradeoffChart");
 const timerProgress = document.querySelector(".timer-progress");
 const timerProgressFill = document.querySelector("#timerProgressFill");
 
@@ -43,6 +45,7 @@ let previousTypedLength = 0;
 let previousLetterTime = null;
 let heatmapStats = loadHeatmapStats();
 let progressChart = null;
+let tradeoffChart = null;
 let lastRunHistogram = null;
 let lastRunSpeeds = [];
 let lastRunHistogramBins = [];
@@ -79,13 +82,24 @@ function loadHeatmapStats() {
           : 0,
       }));
       savedStats.runHistory = Array.isArray(savedStats.runHistory)
-        ? savedStats.runHistory.filter(
-            (run) =>
-              typeof run.completedAt === "string" &&
-              Number.isFinite(run.wordsPerMinute) &&
-              Number.isFinite(run.accuracy) &&
-              Number.isFinite(run.consistency),
-          )
+        ? savedStats.runHistory
+            .filter(
+              (run) =>
+                typeof run.completedAt === "string" &&
+                Number.isFinite(run.wordsPerMinute) &&
+                Number.isFinite(run.accuracy) &&
+                Number.isFinite(run.consistency),
+            )
+            .map((run) => ({
+              ...run,
+              typingScore: Number.isFinite(run.typingScore)
+                ? run.typingScore
+                : getTypingScore(
+                    run.wordsPerMinute,
+                    run.accuracy,
+                    run.consistency,
+                  ),
+            }))
         : [];
 
       return savedStats;
@@ -259,6 +273,7 @@ function renderProgressChart() {
         backgroundColor: "rgba(15, 118, 110, 0.12)",
         tension: 0.25,
         parsing: false,
+        hidden: true,
         yAxisID: "wpm",
       },
       {
@@ -271,6 +286,7 @@ function renderProgressChart() {
         backgroundColor: "rgba(21, 128, 61, 0.12)",
         tension: 0.25,
         parsing: false,
+        hidden: true,
         yAxisID: "percent",
       },
       {
@@ -283,7 +299,20 @@ function renderProgressChart() {
         backgroundColor: "rgba(198, 40, 40, 0.12)",
         tension: 0.25,
         parsing: false,
+        hidden: true,
         yAxisID: "percent",
+      },
+      {
+        label: "Typing score",
+        data: heatmapStats.runHistory.map((run, index) => ({
+          x: index + 1,
+          y: run.typingScore,
+        })),
+        borderColor: "#7c3aed",
+        backgroundColor: "rgba(124, 58, 237, 0.12)",
+        tension: 0.25,
+        parsing: false,
+        yAxisID: "score",
       },
     ],
   };
@@ -342,7 +371,7 @@ function renderProgressChart() {
         },
         percent: {
           type: "linear",
-          position: "right",
+          position: "left",
           beginAtZero: true,
           max: 100,
           grid: {
@@ -353,9 +382,188 @@ function renderProgressChart() {
             text: "Percent",
           },
         },
+        score: {
+          type: "linear",
+          position: "right",
+          beginAtZero: true,
+          grid: {
+            drawOnChartArea: false,
+          },
+          title: {
+            display: true,
+            text: "Score",
+          },
+        },
       },
     },
   });
+}
+
+function renderTradeoffChart() {
+  if (!window.Chart || !tradeoffChartCanvas) {
+    return;
+  }
+
+  const runs = heatmapStats.runHistory;
+  const speedBounds = getPaddedBounds(runs.map((run) => run.wordsPerMinute));
+  const consistencyBounds = getPaddedBounds(
+    runs.map((run) => run.consistency),
+    0,
+    100,
+  );
+  const chartData = {
+    datasets: [
+      {
+        label: "Completed runs",
+        data: runs.map((run, index) => ({
+          x: run.wordsPerMinute,
+          y: run.consistency,
+          testNumber: index + 1,
+          completedAt: run.completedAt,
+          accuracy: run.accuracy,
+          typingScore: run.typingScore,
+        })),
+        backgroundColor: "rgba(15, 118, 110, 0.72)",
+        borderColor: "#0f766e",
+        pointRadius: 5,
+        pointHoverRadius: 7,
+      },
+    ],
+  };
+
+  if (tradeoffChart) {
+    tradeoffChart.data = chartData;
+    tradeoffChart.options.scales.x.min = speedBounds.min;
+    tradeoffChart.options.scales.x.max = speedBounds.max;
+    tradeoffChart.options.scales.y.min = consistencyBounds.min;
+    tradeoffChart.options.scales.y.max = consistencyBounds.max;
+    tradeoffChart.update();
+    return;
+  }
+
+  tradeoffChart = new Chart(tradeoffChartCanvas, {
+    type: "scatter",
+    data: chartData,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: false,
+        },
+        tooltip: {
+          callbacks: {
+            title(items) {
+              return `Test ${items[0].raw.testNumber}`;
+            },
+            label(item) {
+              return [
+                `Speed: ${item.raw.x} WPM`,
+                `Consistency: ${item.raw.y}%`,
+                `Accuracy: ${item.raw.accuracy}%`,
+                `Score: ${item.raw.typingScore}`,
+              ];
+            },
+            afterLabel(item) {
+              return formatChartTimestamp(
+                new Date(item.raw.completedAt).getTime(),
+              );
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          min: speedBounds.min,
+          max: speedBounds.max,
+          title: {
+            display: true,
+            text: "Typing speed (WPM)",
+          },
+        },
+        y: {
+          min: consistencyBounds.min,
+          max: consistencyBounds.max,
+          title: {
+            display: true,
+            text: "Consistency (%)",
+          },
+        },
+      },
+    },
+  });
+}
+
+function getPaddedBounds(values, hardMin = null, hardMax = null) {
+  const finiteValues = removeBoundOutliers(
+    values.filter((value) => Number.isFinite(value)),
+  );
+
+  if (finiteValues.length === 0) {
+    return {
+      min: hardMin ?? 0,
+      max: hardMax ?? 100,
+    };
+  }
+
+  const lowestValue = Math.min(...finiteValues);
+  const highestValue = Math.max(...finiteValues);
+  const range = highestValue - lowestValue;
+  const padding = range === 0 ? Math.max(1, highestValue * 0.1) : range * 0.12;
+  const min =
+    hardMin === null ? lowestValue - padding : Math.max(hardMin, lowestValue - padding);
+  const max =
+    hardMax === null
+      ? highestValue + padding
+      : Math.min(hardMax, highestValue + padding);
+
+  if (min === max) {
+    return {
+      min: hardMin ?? min - 1,
+      max: hardMax ?? max + 1,
+    };
+  }
+
+  return { min, max };
+}
+
+function removeBoundOutliers(values) {
+  if (values.length < 5) {
+    return values;
+  }
+
+  const sortedValues = [...values].sort((first, second) => first - second);
+  const firstQuartile = getQuantile(sortedValues, 0.25);
+  const thirdQuartile = getQuantile(sortedValues, 0.75);
+  const interquartileRange = thirdQuartile - firstQuartile;
+
+  if (interquartileRange === 0) {
+    return values;
+  }
+
+  const lowerFence = firstQuartile - interquartileRange * 1.5;
+  const upperFence = thirdQuartile + interquartileRange * 1.5;
+  const filteredValues = values.filter(
+    (value) => value >= lowerFence && value <= upperFence,
+  );
+
+  return filteredValues.length > 0 ? filteredValues : values;
+}
+
+function getQuantile(sortedValues, quantile) {
+  const position = (sortedValues.length - 1) * quantile;
+  const lowerIndex = Math.floor(position);
+  const upperIndex = Math.ceil(position);
+
+  if (lowerIndex === upperIndex) {
+    return sortedValues[lowerIndex];
+  }
+
+  const weight = position - lowerIndex;
+
+  return (
+    sortedValues[lowerIndex] * (1 - weight) + sortedValues[upperIndex] * weight
+  );
 }
 
 function renderLastRunResults(smoothedRunIntervals) {
@@ -651,10 +859,16 @@ function getMetrics() {
 
 function updateStats() {
   const { wordsPerMinute, accuracy } = getMetrics();
+  const consistency = getRunConsistency(runIntervals);
   speedValue.textContent = wordsPerMinute;
   accuracyValue.textContent = accuracy;
-  consistencyValue.textContent = getRunConsistency(getSmoothedRunIntervals());
+  consistencyValue.textContent = consistency;
+  scoreValue.textContent = getTypingScore(wordsPerMinute, accuracy, consistency);
   updateTimerProgress();
+}
+
+function getTypingScore(wordsPerMinute, accuracy, consistency) {
+  return Math.round(wordsPerMinute * (accuracy / 100) + consistency);
 }
 
 function updateTimerProgress() {
@@ -682,13 +896,16 @@ function finishRun() {
   updateStats();
 
   const { wordsPerMinute, accuracy } = getMetrics();
+  const consistency = getRunConsistency(runIntervals);
   finalSpeed.textContent = wordsPerMinute;
   finalAccuracy.textContent = accuracy;
+  finalScore.textContent = getTypingScore(wordsPerMinute, accuracy, consistency);
 }
 
 function commitRunToHeatmap(smoothedRunIntervals = getSmoothedRunIntervals()) {
   const { wordsPerMinute, accuracy } = getMetrics();
-  const consistency = getRunConsistency(smoothedRunIntervals);
+  const consistency = getRunConsistency(runIntervals);
+  const typingScore = getTypingScore(wordsPerMinute, accuracy, consistency);
 
   runAttempts.forEach((index) => {
     if (!heatmapStats.characters[index]) return;
@@ -712,12 +929,14 @@ function commitRunToHeatmap(smoothedRunIntervals = getSmoothedRunIntervals()) {
     wordsPerMinute,
     accuracy,
     consistency,
+    typingScore,
   });
   heatmapStats.runs += 1;
   saveHeatmapStats();
   renderHeatmap();
   renderSpeedChart();
   renderProgressChart();
+  renderTradeoffChart();
 }
 
 function getSmoothedRunIntervals() {
@@ -779,7 +998,6 @@ function startTimer(now) {
   started = true;
   timerId = setInterval(() => {
     secondsLeft -= 1;
-    timeRemaining.textContent = secondsLeft;
     updateStats();
 
     if (secondsLeft <= 0) {
@@ -802,10 +1020,10 @@ function resetRun() {
 
   typingInput.value = "";
   typingInput.disabled = false;
-  timeRemaining.textContent = runLengthSeconds;
   speedValue.textContent = "0";
   accuracyValue.textContent = "100";
   consistencyValue.textContent = "100";
+  scoreValue.textContent = "100";
   updateTimerProgress();
   resultPanel.hidden = true;
   lastRunSpeeds = [];
@@ -841,6 +1059,7 @@ clearHistoryButton.addEventListener("click", () => {
   renderHeatmap();
   renderSpeedChart();
   renderProgressChart();
+  renderTradeoffChart();
 });
 
 lastRunHistogramCanvas.addEventListener("mouseleave", () => {
@@ -851,3 +1070,4 @@ resetRun();
 renderHeatmap();
 renderSpeedChart();
 renderProgressChart();
+renderTradeoffChart();

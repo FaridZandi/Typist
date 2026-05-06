@@ -19,10 +19,6 @@
 
         <div class="stats-grid" aria-live="polite">
           <div class="stat">
-            <span>Time</span>
-            <strong id="timeRemaining">60</strong>
-          </div>
-          <div class="stat">
             <span>Speed</span>
             <strong><span id="speedValue">0</span> WPM</strong>
           </div>
@@ -33,6 +29,10 @@
           <div class="stat">
             <span>Consistency</span>
             <strong><span id="consistencyValue">100</span>%</strong>
+          </div>
+          <div class="stat">
+            <span>Typing score</span>
+            <strong id="scoreValue">100</strong>
           </div>
         </div>
 
@@ -64,7 +64,8 @@
           <h2>Run complete</h2>
           <p>
             <span id="finalSpeed">0</span> WPM with
-            <span id="finalAccuracy">100</span>% accuracy.
+            <span id="finalAccuracy">100</span>% accuracy and a
+            <span id="finalScore">100</span> typing score.
           </p>
 
           <div class="run-detail-grid">
@@ -134,7 +135,8 @@
             <div>
               <h2 id="progressTitle">Run progress</h2>
               <p>
-                Speed, accuracy, and consistency for each completed typing test
+                Speed, accuracy, consistency, and typing score for each
+                completed typing test
               </p>
             </div>
           </div>
@@ -143,6 +145,23 @@
             <canvas
               id="progressChart"
               aria-label="Typing metrics over time"
+              role="img"
+            ></canvas>
+          </div>
+        </section>
+
+        <section class="tradeoff-section" aria-labelledby="tradeoffTitle">
+          <div class="tradeoff-header">
+            <div>
+              <h2 id="tradeoffTitle">Speed consistency tradeoff</h2>
+              <p>Completed runs plotted by typing speed and consistency</p>
+            </div>
+          </div>
+
+          <div class="chart-wrap square-chart-wrap">
+            <canvas
+              id="tradeoffChart"
+              aria-label="Typing speed and consistency scatter plot"
               role="img"
             ></canvas>
           </div>

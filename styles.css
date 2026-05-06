@@ -284,6 +284,13 @@ button:hover {
   min-width: 0;
 }
 
+.tradeoff-section {
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+  min-width: 0;
+}
+
 .heatmap-header {
   display: flex;
   align-items: flex-start;
@@ -304,6 +311,10 @@ button:hover {
   font-size: 1.25rem;
 }
 
+.tradeoff-header h2 {
+  font-size: 1.25rem;
+}
+
 .heatmap-header p {
   margin-top: 6px;
   color: var(--muted);
@@ -315,6 +326,11 @@ button:hover {
 }
 
 .progress-header p {
+  margin-top: 6px;
+  color: var(--muted);
+}
+
+.tradeoff-header p {
   margin-top: 6px;
   color: var(--muted);
 }
@@ -360,7 +376,8 @@ button:hover {
   color: var(--muted);
 }
 
-.progress-chart-wrap {
+.progress-chart-wrap,
+.chart-wrap {
   position: relative;
   height: 320px;
   margin-top: 14px;
@@ -368,6 +385,14 @@ button:hover {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fbfcfe;
+}
+
+.square-chart-wrap {
+  width: min(100%, 520px);
+  height: auto;
+  aspect-ratio: 1;
+  margin-right: auto;
+  margin-left: auto;
 }
 
 @media (max-width: 680px) {
@@ -402,7 +427,12 @@ button:hover {
     flex: 1;
   }
 
-  .progress-chart-wrap {
+  .progress-chart-wrap,
+  .chart-wrap {
     height: 360px;
+  }
+
+  .square-chart-wrap {
+    height: auto;
   }
 }
