@@ -121,26 +121,79 @@ function saveHeatmapStats() {
 
 function renderPrompt(typedText = "") {
   textDisplay.replaceChildren();
+  const alignment = getTypingAlignment(typedText);
+  const comparisonByPromptIndex = new Map(
+    alignment.comparisons.map((comparison) => [
+      comparison.promptIndex,
+      comparison,
+    ]),
+  );
+  const skippedPromptIndices = new Set(alignment.skippedPromptIndices);
 
   [...promptText].forEach((char, index) => {
     const span = document.createElement("span");
+    const comparison = comparisonByPromptIndex.get(index);
     span.textContent = char;
     span.className = "char";
 
-    if (index < typedText.length) {
-      if (typedText[index] !== char) {
+    if (comparison) {
+      if (!comparison.isCorrect) {
         span.classList.add("incorrect");
       } else if (runMistakes.has(index)) {
         span.classList.add("corrected");
       } else {
         span.classList.add("correct");
       }
-    } else if (index === typedText.length && !finished) {
+    } else if (skippedPromptIndices.has(index)) {
+      span.classList.add("incorrect");
+    } else if (index === alignment.nextPromptIndex && !finished) {
       span.classList.add("current");
     }
 
     textDisplay.append(span);
   });
+}
+
+function getTypingAlignment(typedText) {
+  const comparisons = [];
+  const skippedPromptIndices = [];
+  let promptIndex = 0;
+
+  [...typedText].forEach((typedChar, typedIndex) => {
+    if (promptIndex >= promptText.length) {
+      return;
+    }
+
+    if (typedChar === " ") {
+      const nextSpaceIndex = promptText.indexOf(" ", promptIndex);
+
+      if (nextSpaceIndex !== -1) {
+        for (let index = promptIndex; index < nextSpaceIndex; index += 1) {
+          skippedPromptIndices.push(index);
+        }
+
+        promptIndex = nextSpaceIndex;
+      }
+    }
+
+    const expectedChar = promptText[promptIndex];
+
+    comparisons.push({
+      typedIndex,
+      promptIndex,
+      typedChar,
+      expectedChar,
+      isCorrect: typedChar === expectedChar,
+    });
+
+    promptIndex += 1;
+  });
+
+  return {
+    comparisons,
+    skippedPromptIndices,
+    nextPromptIndex: Math.min(promptIndex, promptText.length),
+  };
 }
 
 function getCharacterAccuracy(index) {
@@ -405,6 +458,7 @@ function renderTradeoffChart() {
   }
 
   const runs = heatmapStats.runHistory;
+  const newestRunIndex = runs.length - 1;
   const speedBounds = getPaddedBounds(runs.map((run) => run.wordsPerMinute));
   const consistencyBounds = getPaddedBounds(
     runs.map((run) => run.consistency),
@@ -423,10 +477,26 @@ function renderTradeoffChart() {
           accuracy: run.accuracy,
           typingScore: run.typingScore,
         })),
-        backgroundColor: "rgba(15, 118, 110, 0.72)",
-        borderColor: "#0f766e",
-        pointRadius: 5,
-        pointHoverRadius: 7,
+        borderColor: "rgba(97, 112, 128, 0.45)",
+        borderWidth: 2,
+        pointBackgroundColor: runs.map((_, index) =>
+          getTradeoffPointColor(index, newestRunIndex),
+        ),
+        pointBorderColor: runs.map((_, index) =>
+          index === newestRunIndex
+            ? "#111827"
+            : getTradeoffPointColor(index, newestRunIndex),
+        ),
+        pointBorderWidth: runs.map((_, index) =>
+          index === newestRunIndex ? 4 : 1,
+        ),
+        fill: false,
+        showLine: true,
+        tension: 0.2,
+        pointRadius: runs.map((_, index) => (index === newestRunIndex ? 8 : 5)),
+        pointHoverRadius: runs.map((_, index) =>
+          index === newestRunIndex ? 10 : 7,
+        ),
       },
     ],
   };
@@ -474,6 +544,7 @@ function renderTradeoffChart() {
       },
       scales: {
         x: {
+          type: "linear",
           min: speedBounds.min,
           max: speedBounds.max,
           title: {
@@ -492,6 +563,25 @@ function renderTradeoffChart() {
       },
     },
   });
+}
+
+function getTradeoffPointColor(index, newestRunIndex) {
+  if (newestRunIndex < 0) {
+    return "rgba(15, 118, 110, 0.72)";
+  }
+
+  if (index === newestRunIndex) {
+    return "#f3c74f";
+  }
+
+  if (newestRunIndex === 0) {
+    return "rgba(15, 118, 110, 0.72)";
+  }
+
+  const ageRatio = index / newestRunIndex;
+  const hue = 210 - ageRatio * 160;
+
+  return `hsl(${hue} 72% 48%)`;
 }
 
 function getPaddedBounds(values, hardMin = null, hardMax = null) {
@@ -809,13 +899,18 @@ function getCoverageTitle(index) {
 }
 
 function recordCurrentMistakes() {
-  const typedText = typingInput.value;
+  const alignment = getTypingAlignment(typingInput.value);
 
-  [...typedText].forEach((char, index) => {
-    runAttempts.add(index);
+  alignment.skippedPromptIndices.forEach((promptIndex) => {
+    runAttempts.add(promptIndex);
+    runMistakes.add(promptIndex);
+  });
 
-    if (char !== promptText[index]) {
-      runMistakes.add(index);
+  alignment.comparisons.forEach((comparison) => {
+    runAttempts.add(comparison.promptIndex);
+
+    if (!comparison.isCorrect) {
+      runMistakes.add(comparison.promptIndex);
     }
   });
 }
@@ -830,9 +925,17 @@ function recordLetterTiming(now) {
   }
 
   const index = typedLength - 1;
+  const alignment = getTypingAlignment(typingInput.value);
+  const latestComparison = alignment.comparisons.find(
+    (comparison) => comparison.typedIndex === index,
+  );
 
-  if (index > 0 && previousLetterTime !== null) {
-    runIntervals.set(index, now - previousLetterTime);
+  if (
+    latestComparison &&
+    latestComparison.promptIndex > 0 &&
+    previousLetterTime !== null
+  ) {
+    runIntervals.set(latestComparison.promptIndex, now - previousLetterTime);
   }
 
   previousLetterTime = now;
@@ -840,8 +943,8 @@ function recordLetterTiming(now) {
 }
 
 function getMetrics() {
-  const typedText = typingInput.value;
-  const attemptedCharacters = runAttempts.size || typedText.length;
+  const alignment = getTypingAlignment(typingInput.value);
+  const attemptedCharacters = runAttempts.size || alignment.comparisons.length;
   const mistakenCharacters = runMistakes.size;
   const correctCharacters = Math.max(0, attemptedCharacters - mistakenCharacters);
   const minutesElapsed = Math.max(
@@ -1046,7 +1149,9 @@ typingInput.addEventListener("input", () => {
   renderPrompt(typingInput.value);
   updateStats();
 
-  if (typingInput.value.length === promptText.length) {
+  if (
+    getTypingAlignment(typingInput.value).nextPromptIndex === promptText.length
+  ) {
     finishRun();
   }
 });
