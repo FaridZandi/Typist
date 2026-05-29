@@ -8,6 +8,10 @@ const keyboardRows = [
   [";", "q", "j", "k", "x", "b", "m", "w", "v", "z"],
 ];
 const targetLetters = keyboardRows.flat();
+const baselineTargetWeight = 1;
+const accuracyPenaltyWeight = 3;
+const reactionTimePenaltyWeight = 2;
+const targetWeightConfidenceSamples = 8;
 
 const startButton = document.querySelector("#startButton");
 const hitValue = document.querySelector("#hitValue");
@@ -48,10 +52,15 @@ let reactionTimes = [];
 let reactionHistory = loadReactionHistory();
 let reactionKeyStats = loadReactionKeyStats();
 let reactionHistoryChart = null;
+let targetDistribution = getTargetDistribution();
 
 function startReactionRun() {
   resetReactionRun();
   running = true;
+  targetDistribution = getTargetDistribution();
+
+  console.log("Target distribution:", targetDistribution);  
+
   startButton.blur();
   startButton.textContent = "Restart";
   reactionStatus.textContent = "Type the displayed letter.";
@@ -96,14 +105,87 @@ function showNextTarget() {
 }
 
 function getRandomLetter() {
-  let nextLetter = currentTarget;
+  if (targetDistribution.length === 0) {
+    return targetLetters[0];
+  }
 
-  while (nextLetter === currentTarget && targetLetters.length > 1) {
-    nextLetter =
-      targetLetters[Math.floor(Math.random() * targetLetters.length)];
+  let nextLetter = currentTarget;
+  let attempts = 0;
+
+  while (
+    nextLetter === currentTarget &&
+    targetDistribution.length > 1 &&
+    attempts < 8
+  ) {
+    nextLetter = getWeightedTarget(targetDistribution);
+    attempts += 1;
   }
 
   return nextLetter;
+}
+
+function getTargetDistribution() {
+  const averageReactionTimes = targetLetters
+    .map((letter) => getAverageKeyReactionTime(letter))
+    .filter((reactionTime) => reactionTime !== null);
+  const fastestReaction =
+    averageReactionTimes.length === 0 ? 0 : Math.min(...averageReactionTimes);
+  const slowestReaction =
+    averageReactionTimes.length === 0 ? 0 : Math.max(...averageReactionTimes);
+
+  return targetLetters.map((letter) => {
+    const stats = reactionKeyStats[letter] ?? {
+      correct: 0,
+      wrong: 0,
+      reactionSamples: 0,
+    };
+    const attempts = stats.correct + stats.wrong;
+    const accuracy = attempts === 0 ? null : stats.correct / attempts;
+    const accuracyConfidence = Math.min(
+      1,
+      attempts / targetWeightConfidenceSamples,
+    );
+    const accuracyPenalty =
+      accuracy === null ? 0 : (1 - accuracy) * accuracyConfidence;
+    const averageReactionTime = getAverageKeyReactionTime(letter);
+    const reactionConfidence = Math.min(
+      1,
+      stats.reactionSamples / targetWeightConfidenceSamples,
+    );
+    const reactionPenalty =
+      averageReactionTime === null || slowestReaction <= fastestReaction
+        ? 0
+        : ((averageReactionTime - fastestReaction) /
+            (slowestReaction - fastestReaction)) *
+          reactionConfidence;
+
+    let w = baselineTargetWeight +
+        accuracyPenalty * accuracyPenaltyWeight +
+        reactionPenalty * reactionTimePenaltyWeight; 
+
+    return {
+      letter,
+      weight: w
+    };
+  });
+}
+
+function getWeightedTarget(distribution) {
+  const totalWeight = distribution.reduce(
+    (total, target) => total + target.weight,
+    0,
+  );
+  let draw = Math.random() * totalWeight;
+
+  for (const target of distribution) {
+    draw -= target.weight;
+
+    if (draw <= 0) {
+      return target.letter;
+    }
+  }
+
+  return distribution[distribution.length - 1].letter;
 }
 
 function handleKeyPress(event) {
