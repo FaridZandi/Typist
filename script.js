@@ -122,12 +122,7 @@ function saveHeatmapStats() {
 function renderPrompt(typedText = "") {
   textDisplay.replaceChildren();
   const alignment = getTypingAlignment(typedText);
-  const comparisonByPromptIndex = new Map(
-    alignment.comparisons.map((comparison) => [
-      comparison.promptIndex,
-      comparison,
-    ]),
-  );
+  const comparisonByPromptIndex = getLatestComparisonByPromptIndex(alignment);
   const skippedPromptIndices = new Set(alignment.skippedPromptIndices);
 
   [...promptText].forEach((char, index) => {
@@ -156,7 +151,7 @@ function renderPrompt(typedText = "") {
 
 function getTypingAlignment(typedText) {
   const comparisons = [];
-  const skippedPromptIndices = [];
+  const skippedPromptIndices = new Set();
   let promptIndex = 0;
 
   [...typedText].forEach((typedChar, typedIndex) => {
@@ -169,7 +164,7 @@ function getTypingAlignment(typedText) {
 
       if (nextSpaceIndex !== -1) {
         for (let index = promptIndex; index < nextSpaceIndex; index += 1) {
-          skippedPromptIndices.push(index);
+          skippedPromptIndices.add(index);
         }
 
         promptIndex = nextSpaceIndex;
@@ -191,9 +186,18 @@ function getTypingAlignment(typedText) {
 
   return {
     comparisons,
-    skippedPromptIndices,
+    skippedPromptIndices: [...skippedPromptIndices],
     nextPromptIndex: Math.min(promptIndex, promptText.length),
   };
+}
+
+function getLatestComparisonByPromptIndex(alignment) {
+  return new Map(
+    alignment.comparisons.map((comparison) => [
+      comparison.promptIndex,
+      comparison,
+    ]),
+  );
 }
 
 function getCharacterAccuracy(index) {
@@ -926,12 +930,11 @@ function recordLetterTiming(now) {
 
   const index = typedLength - 1;
   const alignment = getTypingAlignment(typingInput.value);
-  const latestComparison = alignment.comparisons.find(
-    (comparison) => comparison.typedIndex === index,
-  );
+  const latestComparison = alignment.comparisons.at(-1);
 
   if (
     latestComparison &&
+    latestComparison.typedIndex === index &&
     latestComparison.promptIndex > 0 &&
     previousLetterTime !== null
   ) {
@@ -944,7 +947,10 @@ function recordLetterTiming(now) {
 
 function getMetrics() {
   const alignment = getTypingAlignment(typingInput.value);
-  const attemptedCharacters = runAttempts.size || alignment.comparisons.length;
+  const alignedAttemptCount =
+    getLatestComparisonByPromptIndex(alignment).size +
+    alignment.skippedPromptIndices.length;
+  const attemptedCharacters = runAttempts.size || alignedAttemptCount;
   const mistakenCharacters = runMistakes.size;
   const correctCharacters = Math.max(0, attemptedCharacters - mistakenCharacters);
   const minutesElapsed = Math.max(

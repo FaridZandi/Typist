@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Typist Reaction</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="practice-panel" aria-labelledby="app-title">
+        <header class="top-bar">
+          <div>
+            <h1 id="app-title">Reaction</h1>
+            <p>Press the matching key as soon as the letter appears</p>
+          </div>
+          <div class="button-row">
+            <a class="secondary-link" href="index.html">Typing test</a>
+            <button id="startButton" type="button">Start</button>
+          </div>
+        </header>
+
+        <div class="stats-grid reaction-stats-grid" aria-live="polite">
+          <div class="stat">
+            <span>Hits</span>
+            <strong id="hitValue">0</strong>
+          </div>
+          <div class="stat">
+            <span>Avg reaction</span>
+            <strong><span id="averageReactionValue">0</span> ms</strong>
+          </div>
+          <div class="stat">
+            <span>Accuracy</span>
+            <strong><span id="reactionAccuracyValue">100</span>%</strong>
+          </div>
+          <div class="stat">
+            <span>Errors</span>
+            <strong id="errorValue">0</strong>
+          </div>
+        </div>
+
+        <div
+          class="timer-progress"
+          role="progressbar"
+          aria-label="Elapsed reaction test time"
+          aria-valuemin="0"
+          aria-valuemax="60"
+          aria-valuenow="0"
+        >
+          <div id="reactionProgressFill" class="timer-progress-fill"></div>
+        </div>
+
+        <section class="reaction-stage" aria-label="Reaction test">
+          <div id="targetLetter" class="target-letter" aria-live="assertive">-</div>
+          <div class="reaction-entry-wrap">
+            <span>Typed</span>
+            <div id="typedKeyDisplay" class="typed-key-display">-</div>
+          </div>
+          <p id="reactionStatus" class="reaction-status">
+            Start the test, then type the displayed letter.
+          </p>
+        </section>
+
+        <div id="reactionResultPanel" class="result-panel" hidden>
+          <h2>Run complete</h2>
+          <p>
+            <span id="finalHits">0</span> hits,
+            <span id="finalErrors">0</span> errors,
+            <span id="finalAverageReaction">0</span> ms average reaction.
+          </p>
+
+          <div class="reaction-result-grid">
+            <div class="stat">
+              <span>Best</span>
+              <strong><span id="bestReactionValue">0</span> ms</strong>
+            </div>
+            <div class="stat">
+              <span>Median</span>
+              <strong><span id="medianReactionValue">0</span> ms</strong>
+            </div>
+            <div class="stat">
+              <span>P90</span>
+              <strong><span id="p90ReactionValue">0</span> ms</strong>
+            </div>
+          </div>
+        </div>
+
+        <section class="progress-section" aria-labelledby="reactionProgressTitle">
+          <div class="progress-header">
+            <div>
+              <h2 id="reactionProgressTitle">Reaction progress</h2>
+              <p>
+                Average reaction time, accuracy, hits, and errors across
+                completed tests
+              </p>
+            </div>
+            <button
+              id="clearReactionHistoryButton"
+              type="button"
+              class="secondary-button"
+            >
+              Clear history
+            </button>
+          </div>
+
+          <div class="progress-chart-wrap">
+            <canvas
+              id="reactionHistoryChart"
+              aria-label="Reaction metrics over completed tests"
+              role="img"
+            ></canvas>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.min.js"></script>
+    <script src="reaction.js"></script>
+  </body>
+</html>
