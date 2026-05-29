@@ -12,6 +12,7 @@ const baselineTargetWeight = 1;
 const accuracyPenaltyWeight = 3;
 const reactionTimePenaltyWeight = 2;
 const targetWeightConfidenceSamples = 8;
+const keyMetricAlpha = 0.2;
 
 const startButton = document.querySelector("#startButton");
 const hitValue = document.querySelector("#hitValue");
@@ -54,13 +55,12 @@ let reactionKeyStats = loadReactionKeyStats();
 let reactionHistoryChart = null;
 let targetDistribution = getTargetDistribution();
 
+console.log("Reaction test initialized. Target distribution:", targetDistribution); 
+
 function startReactionRun() {
   resetReactionRun();
   running = true;
   targetDistribution = getTargetDistribution();
-
-  console.log("Target distribution:", targetDistribution);  
-
   startButton.blur();
   startButton.textContent = "Restart";
   reactionStatus.textContent = "Type the displayed letter.";
@@ -125,13 +125,13 @@ function getRandomLetter() {
 }
 
 function getTargetDistribution() {
-  const averageReactionTimes = targetLetters
-    .map((letter) => getAverageKeyReactionTime(letter))
+  const emaReactionTimes = targetLetters
+    .map((letter) => getKeyEmaReactionTime(letter))
     .filter((reactionTime) => reactionTime !== null);
   const fastestReaction =
-    averageReactionTimes.length === 0 ? 0 : Math.min(...averageReactionTimes);
+    emaReactionTimes.length === 0 ? 0 : Math.min(...emaReactionTimes);
   const slowestReaction =
-    averageReactionTimes.length === 0 ? 0 : Math.max(...averageReactionTimes);
+    emaReactionTimes.length === 0 ? 0 : Math.max(...emaReactionTimes);
 
   return targetLetters.map((letter) => {
     const stats = reactionKeyStats[letter] ?? {
@@ -140,14 +140,19 @@ function getTargetDistribution() {
       reactionSamples: 0,
     };
     const attempts = stats.correct + stats.wrong;
-    const accuracy = attempts === 0 ? null : stats.correct / attempts;
+    const accuracy =
+      Number.isFinite(stats.emaAccuracy) && stats.emaAccuracy !== null
+        ? stats.emaAccuracy
+        : attempts === 0
+          ? null
+          : stats.correct / attempts;
     const accuracyConfidence = Math.min(
       1,
       attempts / targetWeightConfidenceSamples,
     );
     const accuracyPenalty =
       accuracy === null ? 0 : (1 - accuracy) * accuracyConfidence;
-    const averageReactionTime = getAverageKeyReactionTime(letter);
+    const averageReactionTime = getKeyEmaReactionTime(letter);
     const reactionConfidence = Math.min(
       1,
       stats.reactionSamples / targetWeightConfidenceSamples,
@@ -159,13 +164,14 @@ function getTargetDistribution() {
             (slowestReaction - fastestReaction)) *
           reactionConfidence;
 
-    let w = baselineTargetWeight +
-        accuracyPenalty * accuracyPenaltyWeight +
-        reactionPenalty * reactionTimePenaltyWeight; 
+    const weight =
+      baselineTargetWeight +
+      accuracyPenalty * accuracyPenaltyWeight +
+      reactionPenalty * reactionTimePenaltyWeight;
 
     return {
       letter,
-      weight: w
+      weight,
     };
   });
 }
@@ -344,6 +350,8 @@ function createEmptyKeyStats() {
         errors: {},
         reactionSamples: 0,
         totalReaction: 0,
+        emaAccuracy: null,
+        emaReaction: null,
       },
     ]),
   );
@@ -384,6 +392,16 @@ function loadReactionKeyStats() {
         totalReaction: Number.isFinite(savedLetterStats.totalReaction)
           ? savedLetterStats.totalReaction
           : 0,
+        emaAccuracy:
+          Number.isFinite(savedLetterStats.emaAccuracy) ||
+          savedLetterStats.emaAccuracy === null
+            ? savedLetterStats.emaAccuracy
+            : null,
+        emaReaction:
+          Number.isFinite(savedLetterStats.emaReaction) ||
+          savedLetterStats.emaReaction === null
+            ? savedLetterStats.emaReaction
+            : null,
       };
     });
 
@@ -406,6 +424,7 @@ function saveReactionKeyStats() {
 
 function recordKeyAttempt(targetKey, wasCorrect, typedKey, reactionTime = null) {
   ensureKeyStats(targetKey);
+  updateKeyEmaAccuracy(targetKey, wasCorrect ? 1 : 0);
 
   if (wasCorrect) {
     reactionKeyStats[targetKey].correct += 1;
@@ -413,6 +432,7 @@ function recordKeyAttempt(targetKey, wasCorrect, typedKey, reactionTime = null) 
     if (Number.isFinite(reactionTime)) {
       reactionKeyStats[targetKey].reactionSamples += 1;
       reactionKeyStats[targetKey].totalReaction += reactionTime;
+      updateKeyEmaReaction(targetKey, reactionTime);
     }
   } else {
     reactionKeyStats[targetKey].wrong += 1;
@@ -420,6 +440,7 @@ function recordKeyAttempt(targetKey, wasCorrect, typedKey, reactionTime = null) 
       (reactionKeyStats[targetKey].errors[typedKey] ?? 0) + 1;
 
     if (typedKey !== targetKey && reactionKeyStats[typedKey]) {
+      updateKeyEmaAccuracy(typedKey, 0);
       reactionKeyStats[typedKey].wrong += 1;
       reactionKeyStats[typedKey].errors[targetKey] =
         (reactionKeyStats[typedKey].errors[targetKey] ?? 0) + 1;
@@ -439,20 +460,40 @@ function ensureKeyStats(key) {
       errors: {},
       reactionSamples: 0,
       totalReaction: 0,
+      emaAccuracy: null,
+      emaReaction: null,
     };
   }
 }
 
+function updateKeyEmaAccuracy(key, value) {
+  const currentAccuracy = reactionKeyStats[key].emaAccuracy;
+
+  reactionKeyStats[key].emaAccuracy =
+    currentAccuracy === null || !Number.isFinite(currentAccuracy)
+      ? value
+      : keyMetricAlpha * value + (1 - keyMetricAlpha) * currentAccuracy;
+}
+
+function updateKeyEmaReaction(key, reactionTime) {
+  const currentReaction = reactionKeyStats[key].emaReaction;
+
+  reactionKeyStats[key].emaReaction =
+    currentReaction === null || !Number.isFinite(currentReaction)
+      ? reactionTime
+      : keyMetricAlpha * reactionTime + (1 - keyMetricAlpha) * currentReaction;
+}
+
 function renderReactionKeyboardStats() {
   const attemptedAccuracies = targetLetters
-    .map((letter) => getKeyAccuracy(letter))
+    .map((letter) => getKeyEmaAccuracy(letter))
     .filter((accuracy) => accuracy !== null);
   const lowestAccuracy = Math.min(...attemptedAccuracies, 100);
   const highestAccuracy = Math.max(...attemptedAccuracies, 100);
 
   reactionKeyboardKeys.forEach((keyElement) => {
     const key = keyElement.dataset.key;
-    const accuracy = getKeyAccuracy(key);
+    const accuracy = getKeyEmaAccuracy(key);
 
     keyElement.style.removeProperty("background-color");
     keyElement.classList.remove("key-untracked");
@@ -501,7 +542,7 @@ function getKeyboardRowClass(rowIndex) {
 
 function renderReactionTimeKeyboardStats() {
   const attemptedReactionTimes = targetLetters
-    .map((letter) => getAverageKeyReactionTime(letter))
+    .map((letter) => getKeyEmaReactionTime(letter))
     .filter((reactionTime) => reactionTime !== null);
   const fastestReaction =
     attemptedReactionTimes.length === 0
@@ -514,7 +555,7 @@ function renderReactionTimeKeyboardStats() {
 
   reactionTimeKeyboardKeys.forEach((keyElement) => {
     const key = keyElement.dataset.timeKey;
-    const reactionTime = getAverageKeyReactionTime(key);
+    const reactionTime = getKeyEmaReactionTime(key);
 
     keyElement.style.removeProperty("background-color");
     keyElement.classList.remove("key-untracked");
@@ -544,6 +585,26 @@ function getAverageKeyReactionTime(key) {
   return Math.round(stats.totalReaction / stats.reactionSamples);
 }
 
+function getKeyEmaAccuracy(key) {
+  const stats = reactionKeyStats[key];
+
+  if (!stats || !Number.isFinite(stats.emaAccuracy)) {
+    return null;
+  }
+
+  return Math.round(stats.emaAccuracy * 100);
+}
+
+function getKeyEmaReactionTime(key) {
+  const stats = reactionKeyStats[key];
+
+  if (!stats || !Number.isFinite(stats.emaReaction)) {
+    return null;
+  }
+
+  return Math.round(stats.emaReaction);
+}
+
 function getReactionTimeColor(reactionTime, fastestReaction, slowestReaction) {
   if (slowestReaction <= fastestReaction) {
     return "hsl(120 68% 72%)";
@@ -558,9 +619,11 @@ function getReactionTimeColor(reactionTime, fastestReaction, slowestReaction) {
 
 function getKeyReactionTimeTitle(key, reactionTime) {
   const stats = reactionKeyStats[key];
+  const lifetimeReaction = getAverageKeyReactionTime(key);
 
   return [
-    `${formatKeyLabel(key)}: ${reactionTime} ms average`,
+    `${formatKeyLabel(key)}: ${reactionTime} ms EMA`,
+    `${lifetimeReaction} ms lifetime average`,
     `${stats.reactionSamples} correct samples`,
   ].join(" | ");
 }
@@ -598,6 +661,8 @@ function getKeyAccuracyColor(accuracy, lowestAccuracy, highestAccuracy) {
 function getKeyStatsTitle(key, accuracy) {
   const stats = reactionKeyStats[key];
   const attempts = stats.correct + stats.wrong;
+  const lifetimeAccuracy =
+    attempts === 0 ? 0 : Math.round((stats.correct / attempts) * 100);
   const commonErrors = Object.entries(stats.errors)
     .sort(([, firstCount], [, secondCount]) => secondCount - firstCount)
     .slice(0, 3)
@@ -605,8 +670,8 @@ function getKeyStatsTitle(key, accuracy) {
     .join(", ");
 
   return [
-    `${formatKeyLabel(key)}: ${accuracy}% accuracy`,
-    `${stats.correct}/${attempts} correct`,
+    `${formatKeyLabel(key)}: ${accuracy}% EMA accuracy`,
+    `${lifetimeAccuracy}% lifetime (${stats.correct}/${attempts} correct)`,
     commonErrors ? `Errors: ${commonErrors}` : "Errors: none",
   ].join(" | ");
 }
