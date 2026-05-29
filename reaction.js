@@ -1,7 +1,13 @@
 const reactionRunLengthSeconds = 60;
 const reactionHistoryStorageKey = "typist-reaction-history";
 const reactionKeyStatsStorageKey = "typist-reaction-key-stats";
-const targetLetters = "abcdefghijklmnopqrstuvwxyz".split("");
+const keyboardRows = [
+  ["`", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "[", "]"],
+  ["'", ",", ".", "p", "y", "f", "g", "c", "r", "l", "/", "=", "\\"],
+  ["a", "o", "e", "u", "i", "d", "h", "t", "n", "s", "-"],
+  [";", "q", "j", "k", "x", "b", "m", "w", "v", "z"],
+];
+const targetLetters = keyboardRows.flat();
 
 const startButton = document.querySelector("#startButton");
 const hitValue = document.querySelector("#hitValue");
@@ -27,6 +33,8 @@ const reactionHistoryChartCanvas = document.querySelector("#reactionHistoryChart
 const reactionKeyboardKeys = document.querySelectorAll(
   ".reaction-keyboard .key[data-key]",
 );
+const reactionTimeKeyboard = document.querySelector("#reactionTimeKeyboard");
+let reactionTimeKeyboardKeys = [];
 
 let running = false;
 let finished = false;
@@ -80,7 +88,7 @@ function resetReactionRun() {
 
 function showNextTarget() {
   currentTarget = getRandomLetter();
-  targetLetter.textContent = currentTarget.toUpperCase();
+  targetLetter.textContent = formatKeyLabel(currentTarget);
   targetLetter.classList.remove("target-error", "target-correct");
   typedKeyDisplay.textContent = "-";
   typedKeyDisplay.classList.remove("typed-key-error", "typed-key-correct");
@@ -113,14 +121,15 @@ function handleKeyPress(event) {
     return;
   }
 
-  if (event.key.length !== 1 || !/^[a-z]$/i.test(event.key)) {
+  const typedKey = normalizeKey(event.key);
+
+  if (!targetLetters.includes(typedKey)) {
     return;
   }
 
   event.preventDefault();
 
-  const typedKey = event.key.toLowerCase();
-  typedKeyDisplay.textContent = typedKey.toUpperCase();
+  typedKeyDisplay.textContent = formatKeyLabel(typedKey);
 
   if (typedKey !== currentTarget) {
     errors += 1;
@@ -141,8 +150,9 @@ function handleKeyPress(event) {
   }
 
   hits += 1;
-  recordKeyAttempt(currentTarget, true, typedKey);
-  reactionTimes.push(performance.now() - targetShownAt);
+  const reactionTime = performance.now() - targetShownAt;
+  recordKeyAttempt(currentTarget, true, typedKey, reactionTime);
+  reactionTimes.push(reactionTime);
   typedKeyDisplay.classList.add("typed-key-correct");
   targetLetter.classList.add("target-correct");
   reactionStatus.textContent = "Correct.";
@@ -153,6 +163,14 @@ function handleKeyPress(event) {
 
     showNextTarget();
   }, 120);
+}
+
+function normalizeKey(key) {
+  return key.length === 1 ? key.toLowerCase() : key;
+}
+
+function formatKeyLabel(key) {
+  return /^[a-z]$/.test(key) ? key.toUpperCase() : key;
 }
 
 function updateStats() {
@@ -242,6 +260,8 @@ function createEmptyKeyStats() {
         correct: 0,
         wrong: 0,
         errors: {},
+        reactionSamples: 0,
+        totalReaction: 0,
       },
     ]),
   );
@@ -276,6 +296,12 @@ function loadReactionKeyStats() {
           savedLetterStats.errors && typeof savedLetterStats.errors === "object"
             ? savedLetterStats.errors
             : {},
+        reactionSamples: Number.isFinite(savedLetterStats.reactionSamples)
+          ? savedLetterStats.reactionSamples
+          : 0,
+        totalReaction: Number.isFinite(savedLetterStats.totalReaction)
+          ? savedLetterStats.totalReaction
+          : 0,
       };
     });
 
@@ -296,11 +322,16 @@ function saveReactionKeyStats() {
   }
 }
 
-function recordKeyAttempt(targetKey, wasCorrect, typedKey) {
+function recordKeyAttempt(targetKey, wasCorrect, typedKey, reactionTime = null) {
   ensureKeyStats(targetKey);
 
   if (wasCorrect) {
     reactionKeyStats[targetKey].correct += 1;
+
+    if (Number.isFinite(reactionTime)) {
+      reactionKeyStats[targetKey].reactionSamples += 1;
+      reactionKeyStats[targetKey].totalReaction += reactionTime;
+    }
   } else {
     reactionKeyStats[targetKey].wrong += 1;
     reactionKeyStats[targetKey].errors[typedKey] =
@@ -315,6 +346,7 @@ function recordKeyAttempt(targetKey, wasCorrect, typedKey) {
 
   saveReactionKeyStats();
   renderReactionKeyboardStats();
+  renderReactionTimeKeyboardStats();
 }
 
 function ensureKeyStats(key) {
@@ -323,6 +355,8 @@ function ensureKeyStats(key) {
       correct: 0,
       wrong: 0,
       errors: {},
+      reactionSamples: 0,
+      totalReaction: 0,
     };
   }
 }
@@ -343,7 +377,7 @@ function renderReactionKeyboardStats() {
 
     if (accuracy === null) {
       keyElement.classList.add("key-untracked");
-      keyElement.title = `${key.toUpperCase()}: no attempts yet`;
+      keyElement.title = `${formatKeyLabel(key)}: no attempts yet`;
       return;
     }
 
@@ -354,6 +388,99 @@ function renderReactionKeyboardStats() {
     );
     keyElement.title = getKeyStatsTitle(key, accuracy);
   });
+}
+
+function renderReactionTimeKeyboardMarkup() {
+  reactionTimeKeyboard.replaceChildren();
+
+  keyboardRows.forEach((row, rowIndex) => {
+    const rowElement = document.createElement("div");
+    rowElement.className = `keyboard-row ${getKeyboardRowClass(rowIndex)}`;
+
+    row.forEach((key) => {
+      const keyElement = document.createElement("div");
+      keyElement.className = "key";
+      keyElement.dataset.timeKey = key;
+      keyElement.textContent = formatKeyLabel(key);
+      rowElement.append(keyElement);
+    });
+
+    reactionTimeKeyboard.append(rowElement);
+  });
+
+  reactionTimeKeyboardKeys = reactionTimeKeyboard.querySelectorAll(
+    ".key[data-time-key]",
+  );
+}
+
+function getKeyboardRowClass(rowIndex) {
+  return ["number-row", "top-letter-row", "home-row", "lower-row"][rowIndex];
+}
+
+function renderReactionTimeKeyboardStats() {
+  const attemptedReactionTimes = targetLetters
+    .map((letter) => getAverageKeyReactionTime(letter))
+    .filter((reactionTime) => reactionTime !== null);
+  const fastestReaction =
+    attemptedReactionTimes.length === 0
+      ? 0
+      : Math.min(...attemptedReactionTimes);
+  const slowestReaction =
+    attemptedReactionTimes.length === 0
+      ? 0
+      : Math.max(...attemptedReactionTimes);
+
+  reactionTimeKeyboardKeys.forEach((keyElement) => {
+    const key = keyElement.dataset.timeKey;
+    const reactionTime = getAverageKeyReactionTime(key);
+
+    keyElement.style.removeProperty("background-color");
+    keyElement.classList.remove("key-untracked");
+
+    if (reactionTime === null) {
+      keyElement.classList.add("key-untracked");
+      keyElement.title = `${formatKeyLabel(key)}: no reaction time yet`;
+      return;
+    }
+
+    keyElement.style.backgroundColor = getReactionTimeColor(
+      reactionTime,
+      fastestReaction,
+      slowestReaction,
+    );
+    keyElement.title = getKeyReactionTimeTitle(key, reactionTime);
+  });
+}
+
+function getAverageKeyReactionTime(key) {
+  const stats = reactionKeyStats[key];
+
+  if (!stats || stats.reactionSamples === 0 || stats.totalReaction <= 0) {
+    return null;
+  }
+
+  return Math.round(stats.totalReaction / stats.reactionSamples);
+}
+
+function getReactionTimeColor(reactionTime, fastestReaction, slowestReaction) {
+  if (slowestReaction <= fastestReaction) {
+    return "hsl(120 68% 72%)";
+  }
+
+  const normalizedSpeed =
+    1 - (reactionTime - fastestReaction) / (slowestReaction - fastestReaction);
+  const hue = Math.round(Math.max(0, Math.min(1, normalizedSpeed)) * 120);
+
+  return `hsl(${hue} 68% 72%)`;
+}
+
+function getKeyReactionTimeTitle(key, reactionTime) {
+  const stats = reactionKeyStats[key];
+
+  return [
+    `${formatKeyLabel(key)}: ${reactionTime} ms average`,
+    `${stats.reactionSamples} correct samples`,
+  ].join(" | ");
 }
 
 function getKeyAccuracy(key) {
@@ -392,11 +519,11 @@ function getKeyStatsTitle(key, accuracy) {
   const commonErrors = Object.entries(stats.errors)
     .sort(([, firstCount], [, secondCount]) => secondCount - firstCount)
     .slice(0, 3)
-    .map(([wrongKey, count]) => `${wrongKey.toUpperCase()} ${count}`)
+    .map(([wrongKey, count]) => `${formatKeyLabel(wrongKey)} ${count}`)
     .join(", ");
 
   return [
-    `${key.toUpperCase()}: ${accuracy}% accuracy`,
+    `${formatKeyLabel(key)}: ${accuracy}% accuracy`,
     `${stats.correct}/${attempts} correct`,
     commonErrors ? `Errors: ${commonErrors}` : "Errors: none",
   ].join(" | ");
@@ -601,8 +728,11 @@ clearReactionHistoryButton.addEventListener("click", () => {
   saveReactionKeyStats();
   renderReactionHistoryChart();
   renderReactionKeyboardStats();
+  renderReactionTimeKeyboardStats();
 });
 
 resetReactionRun();
+renderReactionTimeKeyboardMarkup();
 renderReactionHistoryChart();
 renderReactionKeyboardStats();
+renderReactionTimeKeyboardStats();

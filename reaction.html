@@ -123,25 +123,25 @@
           <div class="reaction-keyboard-wrap">
             <section class="keyboard-shell reaction-keyboard">
               <div class="keyboard-row number-row">
-                <div class="key">`</div>
-                <div class="key">1</div>
-                <div class="key">2</div>
-                <div class="key">3</div>
-                <div class="key">4</div>
-                <div class="key">5</div>
-                <div class="key">6</div>
-                <div class="key">7</div>
-                <div class="key">8</div>
-                <div class="key">9</div>
-                <div class="key">0</div>
-                <div class="key">[</div>
-                <div class="key">]</div>
+                <div class="key" data-key="`">`</div>
+                <div class="key" data-key="1">1</div>
+                <div class="key" data-key="2">2</div>
+                <div class="key" data-key="3">3</div>
+                <div class="key" data-key="4">4</div>
+                <div class="key" data-key="5">5</div>
+                <div class="key" data-key="6">6</div>
+                <div class="key" data-key="7">7</div>
+                <div class="key" data-key="8">8</div>
+                <div class="key" data-key="9">9</div>
+                <div class="key" data-key="0">0</div>
+                <div class="key" data-key="[">[</div>
+                <div class="key" data-key="]">]</div>
               </div>
 
               <div class="keyboard-row top-letter-row">
-                <div class="key">'</div>
-                <div class="key">,</div>
-                <div class="key">.</div>
+                <div class="key" data-key="'">'</div>
+                <div class="key" data-key=",">,</div>
+                <div class="key" data-key=".">.</div>
                 <div class="key" data-key="p">P</div>
                 <div class="key" data-key="y">Y</div>
                 <div class="key" data-key="f">F</div>
@@ -149,9 +149,9 @@
                 <div class="key" data-key="c">C</div>
                 <div class="key" data-key="r">R</div>
                 <div class="key" data-key="l">L</div>
-                <div class="key">/</div>
-                <div class="key">=</div>
-                <div class="key">\</div>
+                <div class="key" data-key="/">/</div>
+                <div class="key" data-key="=">=</div>
+                <div class="key" data-key="\">\</div>
               </div>
 
               <div class="keyboard-row home-row">
@@ -165,11 +165,11 @@
                 <div class="key" data-key="t">T</div>
                 <div class="key" data-key="n">N</div>
                 <div class="key" data-key="s">S</div>
-                <div class="key">-</div>
+                <div class="key" data-key="-">-</div>
               </div>
 
               <div class="keyboard-row lower-row">
-                <div class="key">;</div>
+                <div class="key" data-key=";">;</div>
                 <div class="key" data-key="q">Q</div>
                 <div class="key" data-key="j">J</div>
                 <div class="key" data-key="k">K</div>
@@ -181,6 +181,22 @@
                 <div class="key" data-key="z">Z</div>
               </div>
             </section>
+          </div>
+        </section>
+
+        <section class="keyboard-metrics-section" aria-labelledby="reactionTimeKeyboardTitle">
+          <div class="progress-header">
+            <div>
+              <h2 id="reactionTimeKeyboardTitle">Key reaction time</h2>
+              <p>Average time to correctly type each target key</p>
+            </div>
+          </div>
+
+          <div class="reaction-keyboard-wrap">
+            <section
+              id="reactionTimeKeyboard"
+              class="keyboard-shell reaction-keyboard reaction-time-keyboard"
+            ></section>
           </div>
         </section>
       </section>
