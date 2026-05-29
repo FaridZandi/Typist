@@ -388,6 +388,32 @@ button:hover {
   min-width: 0;
 }
 
+.keyboard-metrics-section {
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+}
+
+.reaction-keyboard-wrap {
+  margin-top: 14px;
+  overflow-x: auto;
+}
+
+.reaction-keyboard {
+  min-width: 560px;
+}
+
+.reaction-keyboard .key {
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease;
+}
+
+.reaction-keyboard .key-untracked {
+  background: #f8fafc;
+  color: var(--muted);
+}
+
 .tradeoff-section {
   margin-top: 28px;
   padding-top: 24px;
@@ -499,6 +525,59 @@ button:hover {
   margin-left: auto;
 }
 
+.keyboard-page {
+  width: min(760px, calc(100% - 32px));
+  min-height: 100vh;
+  margin: 0 auto;
+  display: grid;
+  place-items: center;
+  padding: 24px 0;
+}
+
+.keyboard-shell {
+  width: 100%;
+  display: grid;
+  gap: 6px;
+}
+
+.keyboard-row {
+  display: grid;
+  gap: 5px;
+}
+
+.number-row {
+  grid-template-columns: repeat(13, minmax(38px, 1fr));
+}
+
+.top-letter-row {
+  grid-template-columns: repeat(13, minmax(38px, 1fr));
+  padding-left: calc((100% - 12 * 8px) / 13 * 0.55);
+}
+
+.home-row {
+  grid-template-columns: repeat(11, minmax(38px, 1fr));
+  padding-left: calc((100% - 10 * 8px) / 11 * 0.9);
+  padding-right: calc((100% - 10 * 8px) / 11 * 0.4);
+}
+
+.lower-row {
+  grid-template-columns: repeat(10, minmax(38px, 1fr));
+  padding-left: calc((100% - 9 * 8px) / 10 * 1.6);
+  padding-right: calc((100% - 9 * 8px) / 10 * 1.2);
+}
+
+.key {
+  min-height: clamp(28px, 4.2vw, 42px);
+  display: grid;
+  place-items: center;
+  border: 1px solid #cbd5df;
+  border-radius: 4px;
+  background: #ffffff;
+  color: var(--ink);
+  font-size: clamp(0.74rem, 1.8vw, 0.95rem);
+  font-weight: 700;
+}
+
 @media (max-width: 680px) {
   .top-bar {
     align-items: stretch;
@@ -556,6 +635,16 @@ button:hover {
   .progress-chart-wrap,
   .chart-wrap {
     height: 360px;
+  }
+
+  .keyboard-page {
+    width: min(100% - 16px, 1180px);
+    overflow-x: auto;
+    place-items: center start;
+  }
+
+  .keyboard-shell {
+    min-width: 560px;
   }
 
   .square-chart-wrap {
