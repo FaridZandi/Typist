@@ -1,13 +1,7 @@
 const reactionRunLengthSeconds = 60;
 const reactionHistoryStorageKey = "typist-reaction-history";
 const reactionKeyStatsStorageKey = "typist-reaction-key-stats";
-const keyboardRows = [
-  ["`", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "[", "]"],
-  ["'", ",", ".", "p", "y", "f", "g", "c", "r", "l", "/", "=", "\\"],
-  ["a", "o", "e", "u", "i", "d", "h", "t", "n", "s", "-"],
-  [";", "q", "j", "k", "x", "b", "m", "w", "v", "z"],
-];
-const targetLetters = keyboardRows.flat();
+const targetLetters = getDvorakKeyboardKeys();
 const baselineTargetWeight = 1;
 const accuracyPenaltyWeight = 3;
 const reactionTimePenaltyWeight = 2;
@@ -35,10 +29,11 @@ const clearReactionHistoryButton = document.querySelector(
   "#clearReactionHistoryButton",
 );
 const reactionHistoryChartCanvas = document.querySelector("#reactionHistoryChart");
-const reactionKeyboardKeys = document.querySelectorAll(
-  ".reaction-keyboard .key[data-key]",
+const reactionAccuracyKeyboard = document.querySelector(
+  "#reactionAccuracyKeyboard",
 );
 const reactionTimeKeyboard = document.querySelector("#reactionTimeKeyboard");
+let reactionKeyboardKeys = [];
 let reactionTimeKeyboardKeys = [];
 
 let running = false;
@@ -54,8 +49,6 @@ let reactionHistory = loadReactionHistory();
 let reactionKeyStats = loadReactionKeyStats();
 let reactionHistoryChart = null;
 let targetDistribution = getTargetDistribution();
-
-console.log("Reaction test initialized. Target distribution:", targetDistribution); 
 
 function startReactionRun() {
   resetReactionRun();
@@ -257,9 +250,7 @@ function normalizeKey(key) {
   return key.length === 1 ? key.toLowerCase() : key;
 }
 
-function formatKeyLabel(key) {
-  return /^[a-z]$/.test(key) ? key.toUpperCase() : key;
-}
+const formatKeyLabel = formatKeyboardKeyLabel;
 
 function updateStats() {
   hitValue.textContent = hits;
@@ -513,31 +504,23 @@ function renderReactionKeyboardStats() {
   });
 }
 
-function renderReactionTimeKeyboardMarkup() {
-  reactionTimeKeyboard.replaceChildren();
-
-  keyboardRows.forEach((row, rowIndex) => {
-    const rowElement = document.createElement("div");
-    rowElement.className = `keyboard-row ${getKeyboardRowClass(rowIndex)}`;
-
-    row.forEach((key) => {
-      const keyElement = document.createElement("div");
-      keyElement.className = "key";
-      keyElement.dataset.timeKey = key;
-      keyElement.textContent = formatKeyLabel(key);
-      rowElement.append(keyElement);
-    });
-
-    reactionTimeKeyboard.append(rowElement);
+function renderReactionKeyboardMarkup() {
+  renderDvorakKeyboard(reactionAccuracyKeyboard, {
+    datasetName: "key",
   });
-
-  reactionTimeKeyboardKeys = reactionTimeKeyboard.querySelectorAll(
-    ".key[data-time-key]",
+  reactionKeyboardKeys = reactionAccuracyKeyboard.querySelectorAll(
+    ".key[data-key]",
   );
 }
 
-function getKeyboardRowClass(rowIndex) {
-  return ["number-row", "top-letter-row", "home-row", "lower-row"][rowIndex];
+function renderReactionTimeKeyboardMarkup() {
+  reactionTimeKeyboard.replaceChildren();
+  renderDvorakKeyboard(reactionTimeKeyboard, {
+    datasetName: "timeKey",
+  });
+  reactionTimeKeyboardKeys = reactionTimeKeyboard.querySelectorAll(
+    ".key[data-time-key]",
+  );
 }
 
 function renderReactionTimeKeyboardStats() {
@@ -879,6 +862,7 @@ clearReactionHistoryButton.addEventListener("click", () => {
 });
 
 resetReactionRun();
+renderReactionKeyboardMarkup();
 renderReactionTimeKeyboardMarkup();
 renderReactionHistoryChart();
 renderReactionKeyboardStats();
