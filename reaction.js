@@ -7,6 +7,7 @@ const accuracyPenaltyWeight = 3;
 const reactionTimePenaltyWeight = 2;
 const targetWeightConfidenceSamples = 8;
 const keyMetricAlpha = 0.2;
+const warmupStartKey = "h";
 
 const startButton = document.querySelector("#startButton");
 const hitValue = document.querySelector("#hitValue");
@@ -38,6 +39,7 @@ let reactionTimeKeyboardKeys = [];
 
 let running = false;
 let finished = false;
+let awaitingStartKey = false;
 let timerId = null;
 let secondsLeft = reactionRunLengthSeconds;
 let currentTarget = "";
@@ -53,12 +55,21 @@ let targetDistribution = getTargetDistribution();
 function startReactionRun() {
   resetReactionRun();
   running = true;
+  awaitingStartKey = true;
   targetDistribution = getTargetDistribution();
   startButton.blur();
   startButton.textContent = "Restart";
+  currentTarget = warmupStartKey;
+  targetLetter.textContent = formatKeyLabel(warmupStartKey);
+  reactionStatus.textContent = `Press ${formatKeyLabel(
+    warmupStartKey,
+  )} to start the test.`;
+}
+
+function beginTimedReactionRun() {
+  awaitingStartKey = false;
   reactionStatus.textContent = "Type the displayed letter.";
   showNextTarget();
-
   timerId = setInterval(() => {
     secondsLeft -= 1;
     updateProgress();
@@ -72,6 +83,7 @@ function startReactionRun() {
 function resetReactionRun() {
   running = false;
   finished = false;
+  awaitingStartKey = false;
   clearInterval(timerId);
   timerId = null;
   secondsLeft = reactionRunLengthSeconds;
@@ -81,6 +93,7 @@ function resetReactionRun() {
   errors = 0;
   reactionTimes = [];
   targetLetter.textContent = "-";
+  targetLetter.classList.remove("target-error", "target-correct");
   typedKeyDisplay.textContent = "-";
   typedKeyDisplay.classList.remove("typed-key-error", "typed-key-correct");
   reactionResultPanel.hidden = true;
@@ -211,6 +224,35 @@ function handleKeyPress(event) {
   event.preventDefault();
 
   typedKeyDisplay.textContent = formatKeyLabel(typedKey);
+
+  if (awaitingStartKey) {
+    if (typedKey !== warmupStartKey) {
+      typedKeyDisplay.classList.add("typed-key-error");
+      targetLetter.classList.add("target-error");
+      reactionStatus.textContent = `Press ${formatKeyLabel(
+        warmupStartKey,
+      )} to start the test.`;
+
+      window.setTimeout(() => {
+        if (!running || finished || !awaitingStartKey) return;
+
+        typedKeyDisplay.textContent = "-";
+        typedKeyDisplay.classList.remove("typed-key-error");
+        targetLetter.classList.remove("target-error");
+      }, 140);
+      return;
+    }
+
+    typedKeyDisplay.classList.add("typed-key-correct");
+    targetLetter.classList.add("target-correct");
+
+    window.setTimeout(() => {
+      if (!running || finished || !awaitingStartKey) return;
+
+      beginTimedReactionRun();
+    }, 120);
+    return;
+  }
 
   if (typedKey !== currentTarget) {
     errors += 1;

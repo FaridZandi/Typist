@@ -265,6 +265,7 @@ button:hover {
   border-radius: 8px;
   background: #f8fafc;
   color: var(--ink);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
   font-size: clamp(6rem, 16vw, 11rem);
   font-weight: 900;
   line-height: 1;
