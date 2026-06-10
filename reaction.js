@@ -10,6 +10,8 @@ const keyMetricAlpha = 0.2;
 const warmupStartKey = "h";
 
 const startButton = document.querySelector("#startButton");
+const focusExponentInput = document.querySelector("#focusExponent");
+const focusExponentValue = document.querySelector("#focusExponentValue");
 const hitValue = document.querySelector("#hitValue");
 const averageReactionValue = document.querySelector("#averageReactionValue");
 const reactionAccuracyValue = document.querySelector("#reactionAccuracyValue");
@@ -57,6 +59,7 @@ function startReactionRun() {
   running = true;
   awaitingStartKey = true;
   targetDistribution = getTargetDistribution();
+  focusExponentInput.disabled = true;
   startButton.blur();
   startButton.textContent = "Restart";
   currentTarget = warmupStartKey;
@@ -177,7 +180,7 @@ function getTargetDistribution() {
 
     return {
       letter,
-      weight,
+      weight: Math.pow(weight, Number(focusExponentInput.value)),
     };
   });
 }
@@ -876,6 +879,7 @@ function finishReactionRun() {
   updateProgress();
   updateStats();
   startButton.textContent = "Start";
+  focusExponentInput.disabled = false;
   reactionStatus.textContent = "Run complete.";
   targetLetter.textContent = "-";
   typedKeyDisplay.textContent = "-";
@@ -893,7 +897,19 @@ function finishReactionRun() {
 
 startButton.addEventListener("click", startReactionRun);
 window.addEventListener("keydown", handleKeyPress);
+focusExponentInput.addEventListener("input", () => {
+  focusExponentValue.value = focusExponentInput.value;
+  targetDistribution = getTargetDistribution();
+});
 clearReactionHistoryButton.addEventListener("click", () => {
+  const confirmed = window.confirm(
+    "Are you sure? This will permanently delete all reaction test history and per-key accuracy and reaction-time data.",
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
   reactionHistory = [];
   reactionKeyStats = createEmptyKeyStats();
   saveReactionHistory();
