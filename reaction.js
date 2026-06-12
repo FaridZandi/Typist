@@ -118,19 +118,13 @@ function getRandomLetter() {
     return targetLetters[0];
   }
 
-  let nextLetter = currentTarget;
-  let attempts = 0;
+  const availableTargets = targetDistribution.filter(
+    (target) => target.letter !== currentTarget,
+  );
 
-  while (
-    nextLetter === currentTarget &&
-    targetDistribution.length > 1 &&
-    attempts < 8
-  ) {
-    nextLetter = getWeightedTarget(targetDistribution);
-    attempts += 1;
-  }
-
-  return nextLetter;
+  return getWeightedTarget(
+    availableTargets.length > 0 ? availableTargets : targetDistribution,
+  );
 }
 
 function getTargetDistribution() {
