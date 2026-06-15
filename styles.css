@@ -94,7 +94,9 @@ button:hover {
 
 .button-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 10px;
 }
 
@@ -123,6 +125,34 @@ button:hover {
   color: var(--ink);
   font-variant-numeric: tabular-nums;
   text-align: right;
+}
+
+.character-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.character-toggle input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.character-toggle:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.character-toggle input:disabled {
+  cursor: not-allowed;
 }
 
 .secondary-link {

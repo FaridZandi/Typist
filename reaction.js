@@ -1,6 +1,7 @@
 const reactionRunLengthSeconds = 60;
 const reactionHistoryStorageKey = "typist-reaction-history";
 const reactionKeyStatsStorageKey = "typist-reaction-key-stats";
+const reactionSettingsStorageKey = "typist-reaction-settings";
 const targetLetters = getDvorakKeyboardKeys();
 const baselineTargetWeight = 1;
 const accuracyPenaltyWeight = 3;
@@ -12,6 +13,7 @@ const warmupStartKey = "h";
 const startButton = document.querySelector("#startButton");
 const focusExponentInput = document.querySelector("#focusExponent");
 const focusExponentValue = document.querySelector("#focusExponentValue");
+const includeNonLettersInput = document.querySelector("#includeNonLetters");
 const hitValue = document.querySelector("#hitValue");
 const averageReactionValue = document.querySelector("#averageReactionValue");
 const reactionAccuracyValue = document.querySelector("#reactionAccuracyValue");
@@ -52,7 +54,53 @@ let reactionTimes = [];
 let reactionHistory = loadReactionHistory();
 let reactionKeyStats = loadReactionKeyStats();
 let reactionHistoryChart = null;
+loadReactionSettings();
 let targetDistribution = getTargetDistribution();
+
+function loadReactionSettings() {
+  try {
+    const settings = JSON.parse(
+      localStorage.getItem(reactionSettingsStorageKey),
+    );
+
+    if (!settings || typeof settings !== "object") {
+      return;
+    }
+
+    const focusExponent = Number(settings.focusExponent);
+    const minimumFocus = Number(focusExponentInput.min);
+    const maximumFocus = Number(focusExponentInput.max);
+
+    if (
+      Number.isFinite(focusExponent) &&
+      focusExponent >= minimumFocus &&
+      focusExponent <= maximumFocus
+    ) {
+      focusExponentInput.value = String(focusExponent);
+      focusExponentValue.value = String(focusExponent);
+    }
+
+    if (typeof settings.includeNonLetters === "boolean") {
+      includeNonLettersInput.checked = settings.includeNonLetters;
+    }
+  } catch {
+    // Default settings remain available if browser storage is unavailable.
+  }
+}
+
+function saveReactionSettings() {
+  try {
+    localStorage.setItem(
+      reactionSettingsStorageKey,
+      JSON.stringify({
+        focusExponent: Number(focusExponentInput.value),
+        includeNonLetters: includeNonLettersInput.checked,
+      }),
+    );
+  } catch {
+    // The test still works if browser storage is unavailable.
+  }
+}
 
 function startReactionRun() {
   resetReactionRun();
@@ -60,6 +108,7 @@ function startReactionRun() {
   awaitingStartKey = true;
   targetDistribution = getTargetDistribution();
   focusExponentInput.disabled = true;
+  includeNonLettersInput.disabled = true;
   startButton.blur();
   startButton.textContent = "Restart";
   currentTarget = warmupStartKey;
@@ -128,7 +177,10 @@ function getRandomLetter() {
 }
 
 function getTargetDistribution() {
-  const emaReactionTimes = targetLetters
+  const eligibleTargetLetters = includeNonLettersInput.checked
+    ? targetLetters
+    : targetLetters.filter(isLetterTarget);
+  const emaReactionTimes = eligibleTargetLetters
     .map((letter) => getKeyEmaReactionTime(letter))
     .filter((reactionTime) => reactionTime !== null);
   const fastestReaction =
@@ -136,7 +188,7 @@ function getTargetDistribution() {
   const slowestReaction =
     emaReactionTimes.length === 0 ? 0 : Math.max(...emaReactionTimes);
 
-  return targetLetters.map((letter) => {
+  return eligibleTargetLetters.map((letter) => {
     const stats = reactionKeyStats[letter] ?? {
       correct: 0,
       wrong: 0,
@@ -177,6 +229,10 @@ function getTargetDistribution() {
       weight: Math.pow(weight, Number(focusExponentInput.value)),
     };
   });
+}
+
+function isLetterTarget(target) {
+  return /^[a-z]$/.test(target);
 }
 
 function getWeightedTarget(distribution) {
@@ -874,6 +930,7 @@ function finishReactionRun() {
   updateStats();
   startButton.textContent = "Start";
   focusExponentInput.disabled = false;
+  includeNonLettersInput.disabled = false;
   reactionStatus.textContent = "Run complete.";
   targetLetter.textContent = "-";
   typedKeyDisplay.textContent = "-";
@@ -893,6 +950,11 @@ startButton.addEventListener("click", startReactionRun);
 window.addEventListener("keydown", handleKeyPress);
 focusExponentInput.addEventListener("input", () => {
   focusExponentValue.value = focusExponentInput.value;
+  saveReactionSettings();
+  targetDistribution = getTargetDistribution();
+});
+includeNonLettersInput.addEventListener("change", () => {
+  saveReactionSettings();
   targetDistribution = getTargetDistribution();
 });
 clearReactionHistoryButton.addEventListener("click", () => {
