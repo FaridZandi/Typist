@@ -14,6 +14,8 @@ const startButton = document.querySelector("#startButton");
 const focusExponentInput = document.querySelector("#focusExponent");
 const focusExponentValue = document.querySelector("#focusExponentValue");
 const includeNonLettersInput = document.querySelector("#includeNonLetters");
+const metronomeIntervalInput = document.querySelector("#metronomeInterval");
+const metronomeIntervalValue = document.querySelector("#metronomeIntervalValue");
 const hitValue = document.querySelector("#hitValue");
 const averageReactionValue = document.querySelector("#averageReactionValue");
 const reactionAccuracyValue = document.querySelector("#reactionAccuracyValue");
@@ -45,6 +47,7 @@ let running = false;
 let finished = false;
 let awaitingStartKey = false;
 let timerId = null;
+let metronomeTimerId = null;
 let secondsLeft = reactionRunLengthSeconds;
 let currentTarget = "";
 let targetShownAt = 0;
@@ -83,6 +86,19 @@ function loadReactionSettings() {
     if (typeof settings.includeNonLetters === "boolean") {
       includeNonLettersInput.checked = settings.includeNonLetters;
     }
+
+    const metronomeInterval = Number(settings.metronomeInterval);
+    const minimumMetronomeInterval = Number(metronomeIntervalInput.min);
+    const maximumMetronomeInterval = Number(metronomeIntervalInput.max);
+
+    if (
+      Number.isFinite(metronomeInterval) &&
+      metronomeInterval >= minimumMetronomeInterval &&
+      metronomeInterval <= maximumMetronomeInterval
+    ) {
+      metronomeIntervalInput.value = String(metronomeInterval);
+      updateMetronomeIntervalLabel();
+    }
   } catch {
     // Default settings remain available if browser storage is unavailable.
   }
@@ -95,6 +111,7 @@ function saveReactionSettings() {
       JSON.stringify({
         focusExponent: Number(focusExponentInput.value),
         includeNonLetters: includeNonLettersInput.checked,
+        metronomeInterval: Number(metronomeIntervalInput.value),
       }),
     );
   } catch {
@@ -151,6 +168,32 @@ function resetReactionRun() {
   reactionResultPanel.hidden = true;
   updateStats();
   updateProgress();
+}
+
+function updateMetronomeIntervalLabel() {
+  const interval = Number(metronomeIntervalInput.value);
+  metronomeIntervalValue.value = interval === 0 ? "Off" : `${interval} ms`;
+}
+
+function restartMetronome() {
+  window.clearInterval(metronomeTimerId);
+  metronomeTimerId = null;
+  targetLetter.classList.remove("metronome-pulse");
+
+  const interval = Number(metronomeIntervalInput.value);
+
+  if (!Number.isFinite(interval) || interval <= 0) {
+    return;
+  }
+
+  triggerMetronomePulse();
+  metronomeTimerId = window.setInterval(triggerMetronomePulse, interval);
+}
+
+function triggerMetronomePulse() {
+  targetLetter.classList.remove("metronome-pulse");
+  void targetLetter.offsetWidth;
+  targetLetter.classList.add("metronome-pulse");
 }
 
 function showNextTarget() {
@@ -957,6 +1000,11 @@ includeNonLettersInput.addEventListener("change", () => {
   saveReactionSettings();
   targetDistribution = getTargetDistribution();
 });
+metronomeIntervalInput.addEventListener("input", () => {
+  updateMetronomeIntervalLabel();
+  saveReactionSettings();
+  restartMetronome();
+});
 clearReactionHistoryButton.addEventListener("click", () => {
   const confirmed = window.confirm(
     "Are you sure? This will permanently delete all reaction test history and per-key accuracy and reaction-time data.",
@@ -976,6 +1024,8 @@ clearReactionHistoryButton.addEventListener("click", () => {
 });
 
 resetReactionRun();
+updateMetronomeIntervalLabel();
+restartMetronome();
 renderReactionKeyboardMarkup();
 renderReactionTimeKeyboardMarkup();
 renderReactionHistoryChart();
