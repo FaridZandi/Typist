@@ -9,6 +9,7 @@ const reactionTimePenaltyWeight = 2;
 const targetWeightConfidenceSamples = 8;
 const keyMetricAlpha = 0.2;
 const warmupStartKey = "h";
+const metronomeRewardWindowMs = 50;
 
 const startButton = document.querySelector("#startButton");
 const focusExponentInput = document.querySelector("#focusExponent");
@@ -48,6 +49,9 @@ let finished = false;
 let awaitingStartKey = false;
 let timerId = null;
 let metronomeTimerId = null;
+let metronomeNextPulseAt = 0;
+let rewardNextMetronomePulse = false;
+let beatMatchStreak = 0;
 let secondsLeft = reactionRunLengthSeconds;
 let currentTarget = "";
 let targetShownAt = 0;
@@ -158,6 +162,7 @@ function resetReactionRun() {
   secondsLeft = reactionRunLengthSeconds;
   currentTarget = "";
   targetShownAt = 0;
+  beatMatchStreak = 0;
   hits = 0;
   errors = 0;
   reactionTimes = [];
@@ -178,7 +183,11 @@ function updateMetronomeIntervalLabel() {
 function restartMetronome() {
   window.clearInterval(metronomeTimerId);
   metronomeTimerId = null;
-  targetLetter.classList.remove("metronome-pulse");
+  metronomeNextPulseAt = 0;
+  rewardNextMetronomePulse = false;
+  beatMatchStreak = 0;
+  delete targetLetter.dataset.beatStreak;
+  targetLetter.classList.remove("metronome-pulse", "metronome-reward-pulse");
 
   const interval = Number(metronomeIntervalInput.value);
 
@@ -187,13 +196,36 @@ function restartMetronome() {
   }
 
   triggerMetronomePulse();
-  metronomeTimerId = window.setInterval(triggerMetronomePulse, interval);
+  metronomeNextPulseAt = performance.now() + interval;
+  metronomeTimerId = window.setInterval(() => {
+    triggerMetronomePulse();
+    metronomeNextPulseAt = performance.now() + interval;
+  }, interval);
 }
 
 function triggerMetronomePulse() {
-  targetLetter.classList.remove("metronome-pulse");
+  const shouldRewardPulse = rewardNextMetronomePulse;
+
+  rewardNextMetronomePulse = false;
+  targetLetter.classList.remove("metronome-pulse", "metronome-reward-pulse");
   void targetLetter.offsetWidth;
+  if (shouldRewardPulse) {
+    targetLetter.classList.add("metronome-reward-pulse");
+  }
   targetLetter.classList.add("metronome-pulse");
+}
+
+function markUpcomingMetronomePulseForReward(pressedAt) {
+  const timeUntilPulse = metronomeNextPulseAt - pressedAt;
+
+  if (timeUntilPulse > 0 && timeUntilPulse <= metronomeRewardWindowMs) {
+    beatMatchStreak += 1;
+    targetLetter.dataset.beatStreak = `x${beatMatchStreak}`;
+    rewardNextMetronomePulse = true;
+    return;
+  }
+
+  beatMatchStreak = 0;
 }
 
 function showNextTarget() {
@@ -352,6 +384,7 @@ function handleKeyPress(event) {
 
   if (typedKey !== currentTarget) {
     errors += 1;
+    beatMatchStreak = 0;
     recordKeyAttempt(currentTarget, false, typedKey);
     typedKeyDisplay.classList.add("typed-key-error");
     targetLetter.classList.add("target-error");
@@ -369,7 +402,9 @@ function handleKeyPress(event) {
   }
 
   hits += 1;
-  const reactionTime = performance.now() - targetShownAt;
+  const pressedAt = performance.now();
+  const reactionTime = pressedAt - targetShownAt;
+  markUpcomingMetronomePulseForReward(pressedAt);
   recordKeyAttempt(currentTarget, true, typedKey, reactionTime);
   reactionTimes.push(reactionTime);
   typedKeyDisplay.classList.add("typed-key-correct");
