@@ -18,6 +18,9 @@ const metronomeIntervalInput = document.querySelector("#metronomeInterval");
 const metronomeIntervalValue = document.querySelector("#metronomeIntervalValue");
 const metronomeDurationInput = document.querySelector("#metronomeDuration");
 const metronomeDurationValue = document.querySelector("#metronomeDurationValue");
+const heatmapMetricModeInputs = document.querySelectorAll(
+  'input[name="heatmapMetricMode"]',
+);
 const hitValue = document.querySelector("#hitValue");
 const averageReactionValue = document.querySelector("#averageReactionValue");
 const reactionAccuracyValue = document.querySelector("#reactionAccuracyValue");
@@ -117,6 +120,12 @@ function loadReactionSettings() {
       metronomeDurationInput.value = String(metronomeDuration);
       updateMetronomeDurationLabel();
     }
+
+    if (settings.heatmapMetricMode === "lifetime") {
+      document.querySelector(
+        'input[name="heatmapMetricMode"][value="lifetime"]',
+      ).checked = true;
+    }
   } catch {
     // Default settings remain available if browser storage is unavailable.
   }
@@ -131,6 +140,7 @@ function saveReactionSettings() {
         includeNonLetters: includeNonLettersInput.checked,
         metronomeInterval: Number(metronomeIntervalInput.value),
         metronomeDuration: getMetronomePulseDuration(),
+        heatmapMetricMode: getHeatmapMetricMode(),
       }),
     );
   } catch {
@@ -430,12 +440,7 @@ function handleKeyPress(event) {
   targetLetter.classList.add("target-correct");
   reactionStatus.textContent = "Correct.";
   updateStats();
-
-  window.setTimeout(() => {
-    if (!running || finished) return;
-
-    showNextTarget();
-  }, 120);
+  showNextTarget();
 }
 
 function normalizeKey(key) {
@@ -668,15 +673,18 @@ function updateKeyEmaReaction(key, reactionTime) {
 }
 
 function renderReactionKeyboardStats() {
+  const metricMode = getHeatmapMetricMode();
+  const getAccuracy =
+    metricMode === "lifetime" ? getKeyAccuracy : getKeyEmaAccuracy;
   const attemptedAccuracies = targetLetters
-    .map((letter) => getKeyEmaAccuracy(letter))
+    .map((letter) => getAccuracy(letter))
     .filter((accuracy) => accuracy !== null);
   const lowestAccuracy = Math.min(...attemptedAccuracies, 100);
   const highestAccuracy = Math.max(...attemptedAccuracies, 100);
 
   reactionKeyboardKeys.forEach((keyElement) => {
     const key = keyElement.dataset.key;
-    const accuracy = getKeyEmaAccuracy(key);
+    const accuracy = getAccuracy(key);
 
     keyElement.style.removeProperty("background-color");
     keyElement.classList.remove("key-untracked");
@@ -692,7 +700,7 @@ function renderReactionKeyboardStats() {
       lowestAccuracy,
       highestAccuracy,
     );
-    keyElement.title = getKeyStatsTitle(key, accuracy);
+    keyElement.title = getKeyStatsTitle(key, accuracy, metricMode);
   });
 }
 
@@ -716,8 +724,13 @@ function renderReactionTimeKeyboardMarkup() {
 }
 
 function renderReactionTimeKeyboardStats() {
+  const metricMode = getHeatmapMetricMode();
+  const getReactionTime =
+    metricMode === "lifetime"
+      ? getAverageKeyReactionTime
+      : getKeyEmaReactionTime;
   const attemptedReactionTimes = targetLetters
-    .map((letter) => getKeyEmaReactionTime(letter))
+    .map((letter) => getReactionTime(letter))
     .filter((reactionTime) => reactionTime !== null);
   const fastestReaction =
     attemptedReactionTimes.length === 0
@@ -730,7 +743,7 @@ function renderReactionTimeKeyboardStats() {
 
   reactionTimeKeyboardKeys.forEach((keyElement) => {
     const key = keyElement.dataset.timeKey;
-    const reactionTime = getKeyEmaReactionTime(key);
+    const reactionTime = getReactionTime(key);
 
     keyElement.style.removeProperty("background-color");
     keyElement.classList.remove("key-untracked");
@@ -746,8 +759,19 @@ function renderReactionTimeKeyboardStats() {
       fastestReaction,
       slowestReaction,
     );
-    keyElement.title = getKeyReactionTimeTitle(key, reactionTime);
+    keyElement.title = getKeyReactionTimeTitle(
+      key,
+      reactionTime,
+      metricMode,
+    );
   });
+}
+
+function getHeatmapMetricMode() {
+  return (
+    document.querySelector('input[name="heatmapMetricMode"]:checked')?.value ??
+    "ema"
+  );
 }
 
 function getAverageKeyReactionTime(key) {
@@ -792,13 +816,21 @@ function getReactionTimeColor(reactionTime, fastestReaction, slowestReaction) {
   return `hsl(${hue} 68% 72%)`;
 }
 
-function getKeyReactionTimeTitle(key, reactionTime) {
+function getKeyReactionTimeTitle(key, reactionTime, metricMode) {
   const stats = reactionKeyStats[key];
+  const emaReaction = getKeyEmaReactionTime(key);
   const lifetimeReaction = getAverageKeyReactionTime(key);
+  const primaryLabel = metricMode === "lifetime" ? "lifetime average" : "EMA";
+  const comparison =
+    metricMode === "lifetime"
+      ? emaReaction === null
+        ? "EMA: no data"
+        : `${emaReaction} ms EMA`
+      : `${lifetimeReaction} ms lifetime average`;
 
   return [
-    `${formatKeyLabel(key)}: ${reactionTime} ms EMA`,
-    `${lifetimeReaction} ms lifetime average`,
+    `${formatKeyLabel(key)}: ${reactionTime} ms ${primaryLabel}`,
+    comparison,
     `${stats.reactionSamples} correct samples`,
   ].join(" | ");
 }
@@ -833,11 +865,19 @@ function getKeyAccuracyColor(accuracy, lowestAccuracy, highestAccuracy) {
   return `hsl(${hue} 68% 72%)`;
 }
 
-function getKeyStatsTitle(key, accuracy) {
+function getKeyStatsTitle(key, accuracy, metricMode) {
   const stats = reactionKeyStats[key];
   const attempts = stats.correct + stats.wrong;
+  const emaAccuracy = getKeyEmaAccuracy(key);
   const lifetimeAccuracy =
     attempts === 0 ? 0 : Math.round((stats.correct / attempts) * 100);
+  const primaryLabel = metricMode === "lifetime" ? "lifetime" : "EMA";
+  const comparison =
+    metricMode === "lifetime"
+      ? emaAccuracy === null
+        ? "EMA: no data"
+        : `${emaAccuracy}% EMA accuracy`
+      : `${lifetimeAccuracy}% lifetime (${stats.correct}/${attempts} correct)`;
   const commonErrors = Object.entries(stats.errors)
     .sort(([, firstCount], [, secondCount]) => secondCount - firstCount)
     .slice(0, 3)
@@ -845,8 +885,8 @@ function getKeyStatsTitle(key, accuracy) {
     .join(", ");
 
   return [
-    `${formatKeyLabel(key)}: ${accuracy}% EMA accuracy`,
-    `${lifetimeAccuracy}% lifetime (${stats.correct}/${attempts} correct)`,
+    `${formatKeyLabel(key)}: ${accuracy}% ${primaryLabel} accuracy`,
+    comparison,
     commonErrors ? `Errors: ${commonErrors}` : "Errors: none",
   ].join(" | ");
 }
@@ -1063,6 +1103,13 @@ metronomeDurationInput.addEventListener("input", () => {
   updateMetronomeDurationLabel();
   saveReactionSettings();
   restartMetronome();
+});
+heatmapMetricModeInputs.forEach((input) => {
+  input.addEventListener("change", () => {
+    saveReactionSettings();
+    renderReactionKeyboardStats();
+    renderReactionTimeKeyboardStats();
+  });
 });
 clearReactionHistoryButton.addEventListener("click", () => {
   const confirmed = window.confirm(

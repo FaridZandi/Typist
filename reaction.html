@@ -157,11 +157,31 @@
         </section>
 
         <section class="keyboard-metrics-section" aria-labelledby="reactionKeyboardTitle">
-          <div class="progress-header">
+          <div class="progress-header heatmap-mode-header">
             <div>
               <h2 id="reactionKeyboardTitle">Key accuracy</h2>
               <p>Reaction accuracy by target key, with common wrong-key errors</p>
             </div>
+            <fieldset class="metric-mode-control">
+              <legend>Heatmap values</legend>
+              <label>
+                <input
+                  type="radio"
+                  name="heatmapMetricMode"
+                  value="ema"
+                  checked
+                />
+                <span>EMA</span>
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name="heatmapMetricMode"
+                  value="lifetime"
+                />
+                <span>Lifetime</span>
+              </label>
+            </fieldset>
           </div>
 
           <div class="reaction-keyboard-wrap">

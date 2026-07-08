@@ -539,6 +539,63 @@ button:hover {
   border-top: 1px solid var(--line);
 }
 
+.heatmap-mode-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.metric-mode-control {
+  flex: 0 0 auto;
+  display: inline-flex;
+  margin: 0;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #eef2f6;
+}
+
+.metric-mode-control legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.metric-mode-control label {
+  cursor: pointer;
+}
+
+.metric-mode-control input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.metric-mode-control span {
+  min-height: 32px;
+  display: grid;
+  place-items: center;
+  padding: 0 12px;
+  border-radius: 4px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.metric-mode-control input:checked + span {
+  background: #ffffff;
+  color: var(--ink);
+  box-shadow: 0 1px 3px rgba(22, 32, 42, 0.16);
+}
+
+.metric-mode-control input:focus-visible + span {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
 .reaction-keyboard-wrap {
   margin-top: 14px;
   overflow-x: auto;
@@ -730,6 +787,11 @@ button:hover {
   }
 
   .button-row {
+    flex-direction: column;
+  }
+
+  .heatmap-mode-header {
+    align-items: stretch;
     flex-direction: column;
   }
 
