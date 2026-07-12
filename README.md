@@ -20,6 +20,17 @@ dvorak.html
 
 For the chart features, an internet connection is needed because Chart.js is loaded from a CDN.
 
+## Testing
+
+Install the development dependency, then run the browser-flow tests:
+
+```sh
+npm install
+npm test
+```
+
+The tests run in JSDOM and cover the shared Dvorak renderer, typing alignment and history behaviour, and reaction-test completion, errors, key metrics, and settings persistence.
+
 ## Typing Test
 
 The main typing test shows a prompt and tracks:

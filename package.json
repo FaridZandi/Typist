@@ -1,0 +1,12 @@
+{
+  "name": "typist",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Browser-based typing and reaction practice.",
+  "scripts": {
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "jsdom": "^26.1.0"
+  }
+}
