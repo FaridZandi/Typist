@@ -380,9 +380,20 @@ button:hover {
 
 .typing-caret {
   display: inline-block;
-  width: 2px;
+  width: 0;
   height: 1.35em;
-  margin: 0 2px -0.28em 1px;
+  margin: 0;
+  position: relative;
+  vertical-align: -0.28em;
+}
+
+.typing-caret::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -1px;
+  width: 2px;
+  height: 100%;
   border-radius: 2px;
   background: var(--current);
   animation: typing-caret-blink 900ms steps(1, end) infinite;
