@@ -221,6 +221,8 @@ function renderPrompt() {
     const visibleBuffer = isActive ? [...currentWordBuffer] : committed?.typedCharacters || [];
     const mistakeOffsets = isActive ? currentWordMistakeOffsets : new Set(committed?.mistakeOffsets || []);
 
+    if (isActive && visibleBuffer.length === 0) appendCaret(wordElement);
+
     [...word.text].forEach((character, offset) => {
       const span = document.createElement("span");
       span.className = "char";
@@ -248,7 +250,6 @@ function renderPrompt() {
         wordElement.append(extra);
         if (extraIndex === currentWordBuffer.length - word.text.length - 1) appendCaret(wordElement);
       });
-      if (currentWordBuffer.length === 0) appendCaret(wordElement);
     }
     textDisplay.append(wordElement);
 

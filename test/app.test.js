@@ -85,6 +85,14 @@ test("typing test records a completed text-id run and renders its results", asyn
   assert.equal(runs.runs[0].textId, "calm-precision");
 });
 
+test("typing caret starts at the beginning of the active word", async () => {
+  const dom = await createPage("index.html", ["texts.js", "script.js"], {
+    storage: { "typist-typing-settings-v2": { selectedText: "calm-precision", chartScope: "text" } },
+  });
+  const activeWord = dom.window.document.querySelector(".active-word");
+  assert.equal(activeWord.firstElementChild.classList.contains("typing-caret"), true);
+});
+
 test("typing commits one word, preserves a correction, and keeps extra letters local", async () => {
   const dom = await createPage("index.html", ["texts.js", "script.js"], {
     storage: { "typist-typing-settings-v2": { selectedText: "calm-precision", chartScope: "text" } },
