@@ -66,29 +66,58 @@
           </div>
         </div>
 
-        <section class="heatmap-section" aria-labelledby="heatmapTitle">
-          <div class="heatmap-header">
-            <div><p class="eyebrow">Reflection</p><h2 id="heatmapTitle">Calm precision · character accuracy</h2><p><span id="heatmapRuns">0</span> completed runs recorded for this text</p></div>
-            <button id="clearHistoryButton" type="button" class="secondary-button">Clear typing history</button>
+        <section class="analytics-section" aria-labelledby="heatmapsTitle">
+          <div class="analytics-header">
+            <div class="analytics-heading"><h2 id="heatmapsTitle">Text insights</h2><p class="analytics-meta"><span id="heatmapRuns">0</span> runs</p></div>
+            <div class="view-tabs" role="tablist" aria-label="Text heatmap view" data-view-tabs="heatmaps">
+              <button id="accuracyTab" class="view-tab" type="button" role="tab" aria-selected="true" aria-controls="accuracyPanel" data-view-target="accuracy">Accuracy</button>
+              <button id="speedTab" class="view-tab" type="button" role="tab" aria-selected="false" aria-controls="speedPanel" data-view-target="speed">Letter speed</button>
+            </div>
           </div>
-          <div class="legend" aria-hidden="true"><span>Lowest</span><div class="legend-bar"></div><span>100%</span></div>
-          <div id="heatmapDisplay" class="heatmap-display" aria-label="Per character accuracy heatmap"></div>
+          <div id="accuracyPanel" class="view-panel" role="tabpanel" aria-labelledby="accuracyTab" data-view-panel="heatmaps" data-view-id="accuracy">
+            <div class="heatmap-with-legend">
+              <div id="heatmapDisplay" class="heatmap-display" aria-label="Per character accuracy heatmap"></div>
+              <div class="heatmap-legend" aria-label="Character accuracy scale">
+                <span id="accuracyLegendHighest">—</span>
+                <div class="heatmap-legend-bar"></div>
+                <span id="accuracyLegendLowest">—</span>
+              </div>
+            </div>
+          </div>
+          <div id="speedPanel" class="view-panel" role="tabpanel" aria-labelledby="speedTab" data-view-panel="heatmaps" data-view-id="speed" hidden>
+            <div class="heatmap-with-legend">
+              <div id="speedChart" class="heatmap-display" aria-label="Per character average typing speed heatmap"></div>
+              <div class="heatmap-legend" aria-label="Letter speed scale">
+                <span id="speedLegendHighest">—</span>
+                <div class="heatmap-legend-bar"></div>
+                <span id="speedLegendLowest">—</span>
+              </div>
+            </div>
+          </div>
         </section>
 
-        <section class="speed-section" aria-labelledby="speedChartTitle">
-          <div class="speed-header"><p class="eyebrow">Reflection</p><h2 id="speedChartTitle">Calm precision · letter speed</h2><p>Average WPM for each character position in this text</p></div>
-          <div id="speedChart" class="heatmap-display" aria-label="Per character average typing speed heatmap"></div>
+        <section class="analytics-section" aria-labelledby="trendsTitle">
+          <div class="analytics-header">
+            <div class="analytics-heading"><h2 id="trendsTitle">Trends</h2></div>
+            <div class="analytics-controls">
+              <div class="view-tabs" role="tablist" aria-label="Performance trend view" data-view-tabs="trends">
+                <button id="progressTab" class="view-tab" type="button" role="tab" aria-selected="true" aria-controls="progressPanel" data-view-target="progress">Run progress</button>
+                <button id="tradeoffTab" class="view-tab" type="button" role="tab" aria-selected="false" aria-controls="tradeoffPanel" data-view-target="tradeoff">Speed &amp; consistency</button>
+              </div>
+              <fieldset class="metric-mode-control"><legend>Chart scope</legend><label><input type="radio" name="chartScope" id="chartScopeText" value="text" checked /><span>This text</span></label><label><input type="radio" name="chartScope" id="chartScopeAll" value="all" /><span>All texts</span></label></fieldset>
+            </div>
+          </div>
+          <div id="progressPanel" class="view-panel" role="tabpanel" aria-labelledby="progressTab" data-view-panel="trends" data-view-id="progress">
+            <div class="progress-chart-wrap"><canvas id="progressChart" aria-label="Typing metrics over time" role="img"></canvas></div>
+          </div>
+          <div id="tradeoffPanel" class="view-panel" role="tabpanel" aria-labelledby="tradeoffTab" data-view-panel="trends" data-view-id="tradeoff" hidden>
+            <div class="chart-wrap"><canvas id="tradeoffChart" aria-label="Typing speed and consistency scatter plot" role="img"></canvas></div>
+          </div>
         </section>
 
-        <section class="progress-section" aria-labelledby="progressTitle">
-          <div class="chart-section-header"><div><p class="eyebrow">Trend</p><h2 id="progressTitle">Run progress</h2><p>Speed, accuracy, consistency, and score over time</p></div><fieldset class="metric-mode-control"><legend>Chart scope</legend><label><input type="radio" name="chartScope" id="chartScopeText" value="text" checked /><span>This text</span></label><label><input type="radio" name="chartScope" id="chartScopeAll" value="all" /><span>All texts</span></label></fieldset></div>
-          <div class="progress-chart-wrap"><canvas id="progressChart" aria-label="Typing metrics over time" role="img"></canvas></div>
-        </section>
-
-        <section class="tradeoff-section" aria-labelledby="tradeoffTitle">
-          <div class="tradeoff-header"><p class="eyebrow">Trend</p><h2 id="tradeoffTitle">Speed consistency tradeoff</h2><p>Completed runs plotted by typing speed and consistency</p></div>
-          <div class="chart-wrap"><canvas id="tradeoffChart" aria-label="Typing speed and consistency scatter plot" role="img"></canvas></div>
-        </section>
+        <footer class="history-footer">
+          <button id="clearHistoryButton" type="button" class="secondary-button analytics-history-button">Clear history</button>
+        </footer>
       </section>
     </main>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.min.js"></script>

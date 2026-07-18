@@ -15,8 +15,6 @@ const clearHistoryButton = document.querySelector("#clearHistoryButton");
 const textSelect = document.querySelector("#textSelect");
 const currentTextLabel = document.querySelector("#currentTextLabel");
 const currentTextMeta = document.querySelector("#currentTextMeta");
-const heatmapTitle = document.querySelector("#heatmapTitle");
-const speedChartTitle = document.querySelector("#speedChartTitle");
 const speedValue = document.querySelector("#speedValue");
 const accuracyValue = document.querySelector("#accuracyValue");
 const consistencyValue = document.querySelector("#consistencyValue");
@@ -30,12 +28,17 @@ const lastRunHeatmap = document.querySelector("#lastRunHeatmap");
 const lastRunHistogramCanvas = document.querySelector("#lastRunHistogram");
 const heatmapDisplay = document.querySelector("#heatmapDisplay");
 const heatmapRuns = document.querySelector("#heatmapRuns");
+const accuracyLegendHighest = document.querySelector("#accuracyLegendHighest");
+const accuracyLegendLowest = document.querySelector("#accuracyLegendLowest");
 const speedChart = document.querySelector("#speedChart");
+const speedLegendHighest = document.querySelector("#speedLegendHighest");
+const speedLegendLowest = document.querySelector("#speedLegendLowest");
 const progressChartCanvas = document.querySelector("#progressChart");
 const tradeoffChartCanvas = document.querySelector("#tradeoffChart");
 const timerProgress = document.querySelector(".timer-progress");
 const timerProgressFill = document.querySelector("#timerProgressFill");
 const chartScopeInputs = [...document.querySelectorAll('input[name="chartScope"]')];
+const viewTabLists = [...document.querySelectorAll("[data-view-tabs]")];
 
 const textById = new Map(promptCatalog.map((text) => [text.id, text]));
 let settings = loadSettings();
@@ -204,8 +207,6 @@ function populateTextPicker() {
 function updateTextSummary() {
   currentTextLabel.textContent = activeText.title;
   currentTextMeta.textContent = `${words.length} words · ${activeText.durationSeconds}s`;
-  heatmapTitle.textContent = `${activeText.title} · character accuracy`;
-  speedChartTitle.textContent = `${activeText.title} · letter speed`;
   lastRunHeatmapTitle.textContent = `${activeText.title} · last run character speed`;
 }
 
@@ -242,14 +243,16 @@ function renderPrompt() {
       if (isActive && offset === visibleBuffer.length - 1) appendCaret(wordElement);
     });
 
-    if (isActive) {
-      [...currentWordBuffer].slice(word.text.length).forEach((character, extraIndex) => {
+    if (isActive || committed) {
+      visibleBuffer.slice(word.text.length).forEach((character, extraIndex) => {
         const extra = document.createElement("span");
         extra.className = "extra-char";
         extra.textContent = character;
         extra.title = "Extra character: counted as an error, with no prompt position";
         wordElement.append(extra);
-        if (extraIndex === currentWordBuffer.length - word.text.length - 1) appendCaret(wordElement);
+        if (isActive && extraIndex === visibleBuffer.length - word.text.length - 1) {
+          appendCaret(wordElement);
+        }
       });
     }
     textDisplay.append(wordElement);
@@ -522,8 +525,9 @@ function getCharacterAccuracy(index, stats = getTextStats()) {
   return Math.round(((character.attempts - character.mistakes) / character.attempts) * 100);
 }
 
-function getHeatmapColor(accuracy, lowestAccuracy) {
-  const normalized = accuracy === 100 ? 1 : (accuracy - Math.max(0, Math.min(99, lowestAccuracy))) / (100 - Math.max(0, Math.min(99, lowestAccuracy)));
+function getHeatmapColor(accuracy, lowestAccuracy, highestAccuracy) {
+  if (highestAccuracy <= lowestAccuracy) return "hsl(120 68% 72%)";
+  const normalized = (accuracy - lowestAccuracy) / (highestAccuracy - lowestAccuracy);
   return `hsl(${Math.round(Math.max(0, Math.min(1, normalized)) * 120)} 68% 72%)`;
 }
 
@@ -532,7 +536,10 @@ function renderHeatmap() {
   heatmapDisplay.replaceChildren();
   heatmapRuns.textContent = stats.runs;
   const accuracies = stats.characters.map((_, index) => getCharacterAccuracy(index, stats)).filter((value) => value !== null);
-  const lowestAccuracy = Math.min(...accuracies, 100);
+  const lowestAccuracy = accuracies.length ? Math.min(...accuracies) : null;
+  const highestAccuracy = accuracies.length ? Math.max(...accuracies) : null;
+  accuracyLegendLowest.textContent = lowestAccuracy === null ? "—" : `${lowestAccuracy}%`;
+  accuracyLegendHighest.textContent = highestAccuracy === null ? "—" : `${highestAccuracy}%`;
   [...activeText.body].forEach((character, index) => {
     const span = document.createElement("span");
     span.className = "heatmap-char";
@@ -542,7 +549,11 @@ function renderHeatmap() {
       span.classList.add("untracked");
       span.title = getCoverageTitle(index, stats);
     } else {
-      span.style.backgroundColor = getHeatmapColor(accuracy, lowestAccuracy);
+      span.style.backgroundColor = getHeatmapColor(
+        accuracy,
+        lowestAccuracy,
+        highestAccuracy,
+      );
       span.title = `${accuracy}% accuracy across ${stats.characters[index].attempts} attempts`;
     }
     heatmapDisplay.append(span);
@@ -565,8 +576,10 @@ function renderSpeedChart() {
   speedChart.replaceChildren();
   const speeds = stats.characters.map((_, index) => getAverageLetterWpm(index, stats));
   const recorded = speeds.filter((speed) => speed !== null);
-  const lowest = Math.min(...recorded, 0);
-  const highest = Math.max(...recorded, 1);
+  const lowest = recorded.length ? Math.min(...recorded) : null;
+  const highest = recorded.length ? Math.max(...recorded) : null;
+  speedLegendLowest.textContent = lowest === null ? "—" : `${lowest} WPM`;
+  speedLegendHighest.textContent = highest === null ? "—" : `${highest} WPM`;
   [...activeText.body].forEach((character, index) => {
     const span = document.createElement("span");
     span.className = "heatmap-char";
@@ -728,6 +741,14 @@ typingInput.addEventListener("keydown", (event) => {
 });
 
 document.addEventListener("keydown", (event) => {
+  const activeControl = event.target?.closest?.(
+    'button:not(:disabled), a, select:not(:disabled), input:not(:disabled), textarea:not(:disabled), [role="tab"]',
+  );
+  if (event.key === " " && !activeControl) {
+    event.preventDefault();
+    return;
+  }
+
   if (!finished || !focusRestartOnNextTab || event.key !== "Tab") return;
   event.preventDefault();
   focusRestartOnNextTab = false;
@@ -752,6 +773,27 @@ chartScopeInputs.forEach((input) => input.addEventListener("change", () => {
   saveSettings();
   renderProgressChart(); renderTradeoffChart();
 }));
+viewTabLists.forEach((tabList) => {
+  const group = tabList.dataset.viewTabs;
+  const tabs = [...tabList.querySelectorAll('[role="tab"]')];
+  const panels = [...document.querySelectorAll(`[data-view-panel="${group}"]`)];
+
+  tabs.forEach((tab) => tab.addEventListener("click", () => {
+    tabs.forEach((candidate) => {
+      const isActive = candidate === tab;
+      candidate.setAttribute("aria-selected", String(isActive));
+      candidate.tabIndex = isActive ? 0 : -1;
+    });
+    panels.forEach((panel) => {
+      panel.hidden = panel.dataset.viewId !== tab.dataset.viewTarget;
+    });
+    const afterLayout = window.requestAnimationFrame ?? ((callback) => callback());
+    afterLayout(() => {
+      if (tab.dataset.viewTarget === "progress") progressChart?.resize?.();
+      if (tab.dataset.viewTarget === "tradeoff") tradeoffChart?.resize?.();
+    });
+  }));
+});
 clearHistoryButton.addEventListener("click", () => {
   if (!window.confirm("Clear all typing history and character statistics? This cannot be undone.")) return;
   statsStore = { version: 2, texts: {} };

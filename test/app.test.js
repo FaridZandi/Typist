@@ -81,6 +81,8 @@ test("typing test records a completed text-id run and renders its results", asyn
   assert.equal(document.querySelector("#heatmapRuns").textContent, "1");
   assert.equal(input.disabled, true);
   assert.match(document.querySelector("#finalSpeed").textContent, /^\d+$/);
+  assert.equal(document.querySelector("#accuracyLegendLowest").textContent, "100%");
+  assert.equal(document.querySelector("#accuracyLegendHighest").textContent, "100%");
   const runs = JSON.parse(dom.window.localStorage.getItem("typist-typing-runs-v2"));
   assert.equal(runs.runs[0].textId, "calm-precision");
 });
@@ -113,6 +115,7 @@ test("typing commits one word, preserves a correction, and keeps extra letters l
     assert.equal(document.querySelectorAll("#textDisplay .extra-char").length, 1);
     type(" ");
     assert.equal(document.querySelector(".active-word").textContent.startsWith("is"), true);
+    assert.equal(document.querySelectorAll("#textDisplay .extra-char").length, 1);
     assert.equal(Number(document.querySelector("#accuracyValue").textContent) < 100, true);
 
     document.querySelector("#restartButton").click();
@@ -297,6 +300,19 @@ test("the first Tab after a run focuses Restart", async () => {
   assert.equal(document.activeElement, document.querySelector("#restartButton"));
 });
 
+test("Space does not scroll the page outside an active control", async () => {
+  const dom = await createPage("index.html", ["texts.js", "script.js"]);
+  const space = new dom.window.KeyboardEvent("keydown", {
+    key: " ",
+    bubbles: true,
+    cancelable: true,
+  });
+
+  dom.window.document.dispatchEvent(space);
+
+  assert.equal(space.defaultPrevented, true);
+});
+
 test("random practice resolves to a concrete text and removes legacy typing keys", async () => {
   const randomValues = [0, 0.99];
   const dom = await createPage("index.html", ["texts.js", "script.js"], {
@@ -347,6 +363,23 @@ test("chart scope switches from the active text to every stored text", async () 
   assert.equal(tradeoff.data.datasets[0].data.length, 2);
   assert.equal(progress.data.datasets[0].data[1].textTitle, "One word at a time");
   assert.equal(tradeoff.data.datasets[0].data[1].textTitle, "One word at a time");
+});
+
+test("analytics tabs reveal one heatmap and one trend chart at a time", async () => {
+  const dom = await createPage("index.html", ["texts.js", "script.js"]);
+  const { document } = dom.window;
+
+  assert.equal(document.querySelector("#accuracyPanel").hidden, false);
+  assert.equal(document.querySelector("#speedPanel").hidden, true);
+  document.querySelector("#speedTab").click();
+  assert.equal(document.querySelector("#accuracyPanel").hidden, true);
+  assert.equal(document.querySelector("#speedPanel").hidden, false);
+  assert.equal(document.querySelector("#speedTab").getAttribute("aria-selected"), "true");
+
+  assert.equal(document.querySelector("#progressPanel").hidden, false);
+  document.querySelector("#tradeoffTab").click();
+  assert.equal(document.querySelector("#progressPanel").hidden, true);
+  assert.equal(document.querySelector("#tradeoffPanel").hidden, false);
 });
 
 test("reaction test accepts warmup, records a hit, and completes on Escape", async () => {
