@@ -202,6 +202,19 @@ test("typing timer completes and records an incomplete run when time expires", a
   assert.equal(savedRuns.runs[0].textId, "calm-precision");
 });
 
+test("the first Tab after a run focuses Restart", async () => {
+  const dom = await createPage("index.html", ["texts.js", "script.js"]);
+  const { document, Event } = dom.window;
+  const input = document.querySelector("#typingInput");
+  const prompt = [...document.querySelectorAll("#textDisplay .char")].map((character) => character.textContent).join("");
+
+  input.value = prompt;
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+  document.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true }));
+
+  assert.equal(document.activeElement, document.querySelector("#restartButton"));
+});
+
 test("random practice resolves to a concrete text and removes legacy typing keys", async () => {
   const randomValues = [0, 0.99];
   const dom = await createPage("index.html", ["texts.js", "script.js"], {

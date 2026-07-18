@@ -68,6 +68,7 @@ let tradeoffChart = null;
 let lastRunHistogram = null;
 let lastRunSpeeds = [];
 let lastRunHistogramBins = [];
+let focusRestartOnNextTab = false;
 
 function safeRead(key, fallback) {
   try {
@@ -442,6 +443,7 @@ function finishRun() {
   if (finished) return;
   if (currentWordIndex < words.length) commitCurrentWord(getNow(), false);
   finished = true;
+  focusRestartOnNextTab = true;
   clearInterval(timerId);
   timerId = null;
   const metrics = getMetrics();
@@ -698,6 +700,7 @@ function resetRun({ chooseRandom = settings.selectedText === "random" } = {}) {
   if (chooseRandom) activeText = resolveText("random");
   words = getWords(activeText.body);
   started = false; finished = false; secondsLeft = activeText.durationSeconds || runLengthSeconds;
+  focusRestartOnNextTab = false;
   clearInterval(timerId); timerId = null;
   currentWordIndex = 0; currentWordBuffer = ""; currentWordKeys = []; currentWordLastKeyTimes = new Map(); currentWordMistakeOffsets = new Set(); currentWordDeletedExtraErrors = 0; committedWords = [];
   runPromptAttempts = new Set(); runMistakes = new Set(); runIntervals = new Map(); runExpectedAttempts = 0; runCorrectCharacters = 0; runMistakeCount = 0; runExtraErrors = 0; previousMatchedTime = null;
@@ -714,6 +717,13 @@ typingInput.addEventListener("keydown", (event) => {
   if (event.key === " ") { event.preventDefault(); handleSpace(); return; }
   if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) { event.preventDefault(); handleCharacter(event.key); }
 });
+
+document.addEventListener("keydown", (event) => {
+  if (!finished || !focusRestartOnNextTab || event.key !== "Tab") return;
+  event.preventDefault();
+  focusRestartOnNextTab = false;
+  restartButton.focus();
+}, true);
 
 typingInput.addEventListener("input", () => {
   if (typingInput.value) processExternalInput(typingInput.value);
