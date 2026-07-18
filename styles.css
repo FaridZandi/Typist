@@ -333,6 +333,8 @@ button:hover {
   text-align: left;
   cursor: text;
   appearance: none;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
 }
 
 .text-display:hover {
@@ -340,8 +342,9 @@ button:hover {
 }
 
 .prompt-word {
-  display: inline;
+  display: inline-block;
   white-space: nowrap;
+  vertical-align: baseline;
 }
 
 .prompt-word.active-word {
