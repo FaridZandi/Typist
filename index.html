@@ -22,20 +22,15 @@
         </header>
 
         <section class="text-picker" aria-labelledby="textPickerTitle">
-          <div>
-            <p class="eyebrow">Choose a practice piece</p>
-            <h2 id="textPickerTitle">Text selection</h2>
-            <p id="textPickerDescription" class="section-note">Each text keeps its own history and character map.</p>
-          </div>
-          <label class="text-select-label" for="textSelect">
-            <span>Practice text</span>
-            <select id="textSelect"></select>
-          </label>
-          <div class="text-summary" aria-live="polite">
+          <div class="text-picker-lead">
+            <p class="eyebrow" id="textPickerTitle">Practice piece</p>
             <strong id="currentTextLabel">Calm precision</strong>
             <span id="currentTextMeta">0 words</span>
-            <span id="currentTextPreview"></span>
           </div>
+          <label class="text-select-label" for="textSelect">
+            <span>Choose a piece</span>
+            <select id="textSelect"></select>
+          </label>
         </section>
 
         <div class="stats-grid" aria-live="polite">

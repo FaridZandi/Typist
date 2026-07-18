@@ -15,7 +15,6 @@ const clearHistoryButton = document.querySelector("#clearHistoryButton");
 const textSelect = document.querySelector("#textSelect");
 const currentTextLabel = document.querySelector("#currentTextLabel");
 const currentTextMeta = document.querySelector("#currentTextMeta");
-const currentTextPreview = document.querySelector("#currentTextPreview");
 const heatmapTitle = document.querySelector("#heatmapTitle");
 const speedChartTitle = document.querySelector("#speedChartTitle");
 const speedValue = document.querySelector("#speedValue");
@@ -201,7 +200,6 @@ function populateTextPicker() {
 function updateTextSummary() {
   currentTextLabel.textContent = activeText.title;
   currentTextMeta.textContent = `${words.length} words · ${activeText.durationSeconds}s`;
-  currentTextPreview.textContent = activeText.body;
   heatmapTitle.textContent = `${activeText.title} · character accuracy`;
   speedChartTitle.textContent = `${activeText.title} · letter speed`;
   lastRunHeatmapTitle.textContent = `${activeText.title} · last run character speed`;

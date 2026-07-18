@@ -65,19 +65,28 @@ body {
 
 .text-picker {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(220px, 0.8fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 0.85fr);
   align-items: end;
-  gap: 18px;
+  gap: 24px;
   margin-bottom: 22px;
-  padding: 18px;
-  border: 1px solid rgba(15, 118, 110, 0.2);
-  border-radius: 12px;
-  background: linear-gradient(120deg, rgba(15, 118, 110, 0.08), rgba(255, 255, 255, 0.75));
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
 }
 
-.text-picker h2 {
-  margin-top: 4px;
-  font-size: 1.1rem;
+.text-picker-lead {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  min-width: 0;
+}
+
+.text-picker-lead .eyebrow {
+  flex-basis: 100%;
+}
+
+.text-picker-lead strong {
+  font-size: 1.15rem;
 }
 
 .text-select-label {
@@ -101,23 +110,9 @@ body {
   font-weight: 700;
 }
 
-.text-summary {
-  display: grid;
-  gap: 5px;
-  min-width: 130px;
+.text-picker-lead span {
   color: var(--muted);
   font-size: 0.8rem;
-  text-align: right;
-}
-
-.text-summary span:last-child {
-  max-width: 250px;
-  overflow: hidden;
-  color: var(--muted);
-  font-size: 0.72rem;
-  line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .text-summary strong {
@@ -967,11 +962,7 @@ button:hover {
 
   .text-picker {
     grid-template-columns: 1fr;
-    align-items: stretch;
-  }
-
-  .text-summary {
-    text-align: left;
+    gap: 14px;
   }
 
   .text-display {
