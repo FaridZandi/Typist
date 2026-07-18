@@ -11,6 +11,7 @@
       <section class="practice-panel" aria-labelledby="app-title">
         <header class="top-bar">
           <div>
+            <p class="eyebrow">Practice instrument</p>
             <h1 id="app-title">Typist</h1>
             <p>60 second typing practice</p>
           </div>
@@ -20,159 +21,83 @@
           </div>
         </header>
 
+        <section class="text-picker" aria-labelledby="textPickerTitle">
+          <div>
+            <p class="eyebrow">Choose a practice piece</p>
+            <h2 id="textPickerTitle">Text selection</h2>
+            <p id="textPickerDescription" class="section-note">Each text keeps its own history and character map.</p>
+          </div>
+          <label class="text-select-label" for="textSelect">
+            <span>Practice text</span>
+            <select id="textSelect"></select>
+          </label>
+          <div class="text-summary" aria-live="polite">
+            <strong id="currentTextLabel">Calm precision</strong>
+            <span id="currentTextMeta">0 words</span>
+            <span id="currentTextPreview"></span>
+          </div>
+        </section>
+
         <div class="stats-grid" aria-live="polite">
-          <div class="stat">
-            <span>Speed</span>
-            <strong><span id="speedValue">0</span> WPM</strong>
-          </div>
-          <div class="stat">
-            <span>Accuracy</span>
-            <strong><span id="accuracyValue">100</span>%</strong>
-          </div>
-          <div class="stat">
-            <span>Consistency</span>
-            <strong><span id="consistencyValue">100</span>%</strong>
-          </div>
-          <div class="stat">
-            <span>Typing score</span>
-            <strong id="scoreValue">100</strong>
-          </div>
+          <div class="stat"><span>Speed</span><strong><span id="speedValue">0</span> WPM</strong></div>
+          <div class="stat"><span>Accuracy</span><strong><span id="accuracyValue">100</span>%</strong></div>
+          <div class="stat"><span>Consistency</span><strong><span id="consistencyValue">100</span>%</strong></div>
+          <div class="stat"><span>Typing score</span><strong id="scoreValue">100</strong></div>
         </div>
 
-        <div
-          class="timer-progress"
-          role="progressbar"
-          aria-label="Elapsed typing time"
-          aria-valuemin="0"
-          aria-valuemax="60"
-          aria-valuenow="0"
-        >
+        <div class="timer-progress" role="progressbar" aria-label="Elapsed typing time" aria-valuemin="0" aria-valuemax="60" aria-valuenow="0">
           <div id="timerProgressFill" class="timer-progress-fill"></div>
         </div>
 
-        <div id="textDisplay" class="text-display" aria-label="Typing prompt"></div>
-
-        <label class="typing-label" for="typingInput">Type here</label>
-        <textarea
-          id="typingInput"
-          class="typing-input"
-          autocomplete="off"
-          autocapitalize="off"
-          spellcheck="false"
-          rows="5"
-          placeholder="Start typing to begin the timer"
-        ></textarea>
+        <button id="textDisplay" class="text-display" type="button" aria-label="Typing prompt. Click to focus the keyboard input"></button>
+        <p class="typing-hint">Click the prompt and type. Space commits the current word; backspace edits only that word.</p>
+        <label class="visually-hidden" for="typingInput">Keyboard input</label>
+        <textarea id="typingInput" class="typing-input" autocomplete="off" autocapitalize="off" spellcheck="false" rows="1" aria-describedby="typingInputDescription"></textarea>
+        <span id="typingInputDescription" class="visually-hidden">Your keystrokes are captured here while the prompt remains the visible typing surface.</span>
 
         <div id="resultPanel" class="result-panel" hidden>
+          <p class="eyebrow">Reflection</p>
           <h2>Run complete</h2>
-          <p>
-            <span id="finalSpeed">0</span> WPM with
-            <span id="finalAccuracy">100</span>% accuracy and a
-            <span id="finalScore">100</span> typing score.
-          </p>
-
+          <p><span id="finalSpeed">0</span> WPM with <span id="finalAccuracy">100</span>% accuracy and a <span id="finalScore">100</span> typing score.</p>
           <div class="run-detail-grid">
             <section aria-labelledby="lastRunHeatmapTitle">
-              <h3 id="lastRunHeatmapTitle">Last run speed heatmap</h3>
-              <div
-                id="lastRunHeatmap"
-                class="heatmap-display run-heatmap-display"
-                aria-label="Last run per character speed heatmap"
-              ></div>
+              <h3 id="lastRunHeatmapTitle">Last run · character speed</h3>
+              <div id="lastRunHeatmap" class="heatmap-display run-heatmap-display" aria-label="Last run per character speed heatmap"></div>
             </section>
-
             <section aria-labelledby="lastRunHistogramTitle">
-              <h3 id="lastRunHistogramTitle">Letter speed histogram</h3>
-              <div class="histogram-wrap">
-                <canvas
-                  id="lastRunHistogram"
-                  aria-label="Last run letter speed histogram"
-                  role="img"
-                ></canvas>
-              </div>
+              <h3 id="lastRunHistogramTitle">Letter speed distribution</h3>
+              <div class="histogram-wrap"><canvas id="lastRunHistogram" aria-label="Last run letter speed histogram" role="img"></canvas></div>
             </section>
           </div>
         </div>
 
         <section class="heatmap-section" aria-labelledby="heatmapTitle">
           <div class="heatmap-header">
-            <div>
-              <h2 id="heatmapTitle">Text heatmap</h2>
-              <p><span id="heatmapRuns">0</span> completed runs recorded</p>
-            </div>
-            <button id="clearHistoryButton" type="button" class="secondary-button">
-              Clear history
-            </button>
+            <div><p class="eyebrow">Reflection</p><h2 id="heatmapTitle">Calm precision · character accuracy</h2><p><span id="heatmapRuns">0</span> completed runs recorded for this text</p></div>
+            <button id="clearHistoryButton" type="button" class="secondary-button">Clear typing history</button>
           </div>
-
-          <div class="legend" aria-hidden="true">
-            <span>Lowest</span>
-            <div class="legend-bar"></div>
-            <span>100%</span>
-          </div>
-
-          <div
-            id="heatmapDisplay"
-            class="heatmap-display"
-            aria-label="Per character accuracy heatmap"
-          ></div>
+          <div class="legend" aria-hidden="true"><span>Lowest</span><div class="legend-bar"></div><span>100%</span></div>
+          <div id="heatmapDisplay" class="heatmap-display" aria-label="Per character accuracy heatmap"></div>
         </section>
 
         <section class="speed-section" aria-labelledby="speedChartTitle">
-          <div class="speed-header">
-            <div>
-              <h2 id="speedChartTitle">Letter speed</h2>
-              <p>Average WPM for each character position across recorded runs</p>
-            </div>
-          </div>
-
-          <div
-            id="speedChart"
-            class="heatmap-display"
-            aria-label="Per character average typing speed heatmap"
-          ></div>
+          <div class="speed-header"><p class="eyebrow">Reflection</p><h2 id="speedChartTitle">Calm precision · letter speed</h2><p>Average WPM for each character position in this text</p></div>
+          <div id="speedChart" class="heatmap-display" aria-label="Per character average typing speed heatmap"></div>
         </section>
 
         <section class="progress-section" aria-labelledby="progressTitle">
-          <div class="progress-header">
-            <div>
-              <h2 id="progressTitle">Run progress</h2>
-              <p>
-                Speed, accuracy, consistency, and typing score for each
-                completed typing test
-              </p>
-            </div>
-          </div>
-
-          <div class="progress-chart-wrap">
-            <canvas
-              id="progressChart"
-              aria-label="Typing metrics over time"
-              role="img"
-            ></canvas>
-          </div>
+          <div class="chart-section-header"><div><p class="eyebrow">Trend</p><h2 id="progressTitle">Run progress</h2><p>Speed, accuracy, consistency, and score over time</p></div><fieldset class="metric-mode-control"><legend>Chart scope</legend><label><input type="radio" name="chartScope" id="chartScopeText" value="text" checked /><span>This text</span></label><label><input type="radio" name="chartScope" id="chartScopeAll" value="all" /><span>All texts</span></label></fieldset></div>
+          <div class="progress-chart-wrap"><canvas id="progressChart" aria-label="Typing metrics over time" role="img"></canvas></div>
         </section>
 
         <section class="tradeoff-section" aria-labelledby="tradeoffTitle">
-          <div class="tradeoff-header">
-            <div>
-              <h2 id="tradeoffTitle">Speed consistency tradeoff</h2>
-              <p>Completed runs plotted by typing speed and consistency</p>
-            </div>
-          </div>
-
-          <div class="chart-wrap square-chart-wrap">
-            <canvas
-              id="tradeoffChart"
-              aria-label="Typing speed and consistency scatter plot"
-              role="img"
-            ></canvas>
-          </div>
+          <div class="tradeoff-header"><p class="eyebrow">Trend</p><h2 id="tradeoffTitle">Speed consistency tradeoff</h2><p>Completed runs plotted by typing speed and consistency</p></div>
+          <div class="chart-wrap"><canvas id="tradeoffChart" aria-label="Typing speed and consistency scatter plot" role="img"></canvas></div>
         </section>
       </section>
     </main>
-
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.min.js"></script>
+    <script src="texts.js"></script>
     <script src="script.js"></script>
   </body>
 </html>

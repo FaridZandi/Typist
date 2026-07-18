@@ -2,7 +2,7 @@
 
 Typist is a small browser-based typing practice project. It currently has three standalone pages:
 
-- `index.html`: a 60-second fixed-text typing test.
+- `index.html`: a 60-second typing test with selectable practice texts.
 - `reaction.html`: a reaction-time key drill.
 - `dvorak.html`: a minimal Dvorak keyboard schematic.
 
@@ -44,9 +44,9 @@ The main typing test shows a prompt and tracks:
 - run progress over time
 - speed/consistency tradeoff
 
-Mistakes are remembered even if they are later corrected. When a typed space is pressed, comparison realigns to the next expected space so a single missed or extra character does not shift the rest of the run forever. Skipped characters are still counted as mistakes.
+The prompt is the typing surface. A small focused input captures keyboard and IME events while the prompt renders the active word, caret, corrections, omissions, substitutions, and extra characters. Backspace edits only the active word; space commits it and aligns to the next prompt word. At timeout, the unfinished word is committed as-is.
 
-Typing history is stored in `localStorage` per prompt text.
+Typing history is stored in versioned `localStorage` records. Character statistics are keyed by text ID, while completed runs retain their resolved text ID even when the Random selector was used. The progress and tradeoff charts can show either the active text or all texts.
 
 ## Reaction Test
 
@@ -79,6 +79,7 @@ Reaction history is stored in `localStorage`.
 ## Files
 
 - `index.html`: typing test UI
+- `texts.js`: typing prompt catalog
 - `script.js`: typing test logic
 - `reaction.html`: reaction test UI
 - `reaction.js`: reaction test logic

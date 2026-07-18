@@ -21,17 +21,20 @@ async function createPage(htmlFile, scripts, options = {}) {
 
   beforeScripts?.(window);
 
+  const chartInstances = [];
   window.Chart = class Chart {
     constructor(canvas, config) {
       this.canvas = canvas;
       this.data = config.data;
       this.options = config.options;
+      chartInstances.push(this);
     }
 
     update() {}
 
     destroy() {}
   };
+  window.__chartInstances = chartInstances;
 
   for (const script of scripts) {
     window.eval(await readFile(resolve(root, script), "utf8"));
@@ -61,8 +64,10 @@ test("Dvorak renderer creates all expected keys and supports a custom dataset", 
   assert.equal(keys.find((key) => key.textContent === "H").dataset.reactionKey, "h");
 });
 
-test("typing test records a completed prompt and renders its results", async () => {
-  const dom = await createPage("index.html", ["script.js"]);
+test("typing test records a completed text-id run and renders its results", async () => {
+  const dom = await createPage("index.html", ["texts.js", "script.js"], {
+    storage: { "typist-typing-settings-v2": { selectedText: "calm-precision", chartScope: "text" } },
+  });
   const { document, Event } = dom.window;
   const input = document.querySelector("#typingInput");
   const prompt = [...document.querySelectorAll("#textDisplay .char")]
@@ -76,28 +81,30 @@ test("typing test records a completed prompt and renders its results", async () 
   assert.equal(document.querySelector("#heatmapRuns").textContent, "1");
   assert.equal(input.disabled, true);
   assert.match(document.querySelector("#finalSpeed").textContent, /^\d+$/);
+  const runs = JSON.parse(dom.window.localStorage.getItem("typist-typing-runs-v2"));
+  assert.equal(runs.runs[0].textId, "calm-precision");
 });
 
-test("typing test preserves corrected mistakes and realigns at a space", async () => {
-  const dom = await createPage("index.html", ["script.js"]);
-  const { document, Event } = dom.window;
+test("typing commits one word, preserves a correction, and keeps extra letters local", async () => {
+  const dom = await createPage("index.html", ["texts.js", "script.js"], {
+    storage: { "typist-typing-settings-v2": { selectedText: "calm-precision", chartScope: "text" } },
+  });
+  const { document } = dom.window;
   const input = document.querySelector("#typingInput");
+  const type = (key) => input.dispatchEvent(new dom.window.KeyboardEvent("keydown", { bubbles: true, cancelable: true, key }));
 
   try {
-    input.value = "Tz";
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    input.value = "Ty";
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    assert.equal(
-      document.querySelectorAll("#textDisplay .char")[1].classList.contains("corrected"),
-      true,
-    );
-
-    input.value = "Tping ";
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    const characters = document.querySelectorAll("#textDisplay .char");
-    assert.equal(characters[1].classList.contains("incorrect"), true);
-    assert.equal(characters[6].classList.contains("correct"), true);
+    type("T");
+    type("z");
+    type("Backspace");
+    type("y");
+    type(" ");
+    assert.equal(document.querySelectorAll("#textDisplay .char")[1].classList.contains("corrected"), true);
+    type("w"); type("e"); type("l"); type("l"); type("l");
+    assert.equal(document.querySelectorAll("#textDisplay .extra-char").length, 1);
+    type(" ");
+    assert.equal(document.querySelector(".active-word").textContent.startsWith("is"), true);
+    assert.equal(Number(document.querySelector("#accuracyValue").textContent) < 100, true);
 
     document.querySelector("#restartButton").click();
     assert.equal(input.value, "");
@@ -109,8 +116,8 @@ test("typing test preserves corrected mistakes and realigns at a space", async (
   }
 });
 
-test("typing history can be cleared after a completed run", async () => {
-  const dom = await createPage("index.html", ["script.js"]);
+test("typing history can be cleared across the v2 stores", async () => {
+  const dom = await createPage("index.html", ["texts.js", "script.js"]);
   const { document, Event, localStorage } = dom.window;
   const input = document.querySelector("#typingInput");
   const prompt = [...document.querySelectorAll("#textDisplay .char")]
@@ -122,30 +129,31 @@ test("typing history can be cleared after a completed run", async () => {
   document.querySelector("#clearHistoryButton").click();
 
   assert.equal(document.querySelector("#heatmapRuns").textContent, "0");
-  const savedHistory = JSON.parse(localStorage.getItem("typist-heatmap:" + prompt));
-  assert.equal(savedHistory.runs, 0);
-  assert.deepEqual(savedHistory.runHistory, []);
+  const savedStats = JSON.parse(localStorage.getItem("typist-typing-stats-v2"));
+  const savedRuns = JSON.parse(localStorage.getItem("typist-typing-runs-v2"));
+  assert.deepEqual(savedStats, { version: 2, texts: {} });
+  assert.deepEqual(savedRuns, { version: 2, runs: [] });
 });
 
-test("typing test truncates oversized pasted input to the prompt length", async () => {
-  const dom = await createPage("index.html", ["script.js"]);
+test("typing commits omitted prompt characters as errors", async () => {
+  const dom = await createPage("index.html", ["texts.js", "script.js"], {
+    storage: { "typist-typing-settings-v2": { selectedText: "calm-precision", chartScope: "text" } },
+  });
   const { document, Event } = dom.window;
   const input = document.querySelector("#typingInput");
-  const prompt = [...document.querySelectorAll("#textDisplay .char")]
-    .map((character) => character.textContent)
-    .join("");
 
-  input.value = `${prompt} trailing text that must not be counted`;
+  input.value = "T ";
   input.dispatchEvent(new Event("input", { bubbles: true }));
 
-  assert.equal(input.value, prompt);
-  assert.equal(document.querySelector("#resultPanel").hidden, false);
-  assert.equal(document.querySelector("#heatmapRuns").textContent, "1");
+  assert.equal(document.querySelector("#resultPanel").hidden, true);
+  assert.equal(Number(document.querySelector("#accuracyValue").textContent) < 100, true);
+  document.querySelector("#restartButton").click();
 });
 
 test("typing timer completes and records an incomplete run when time expires", async () => {
   const intervalCallbacks = [];
-  const dom = await createPage("index.html", ["script.js"], {
+  const dom = await createPage("index.html", ["texts.js", "script.js"], {
+    storage: { "typist-typing-settings-v2": { selectedText: "calm-precision", chartScope: "text" } },
     beforeScripts(window) {
       window.setInterval = (callback) => {
         intervalCallbacks.push(callback);
@@ -165,10 +173,61 @@ test("typing timer completes and records an incomplete run when time expires", a
 
   assert.equal(document.querySelector("#resultPanel").hidden, false);
   assert.equal(input.disabled, true);
-  const storageKey = Object.keys(localStorage).find((key) =>
-    key.startsWith("typist-heatmap:"),
-  );
-  assert.equal(JSON.parse(localStorage.getItem(storageKey)).runs, 1);
+  const savedRuns = JSON.parse(localStorage.getItem("typist-typing-runs-v2"));
+  assert.equal(savedRuns.runs.length, 1);
+  assert.equal(savedRuns.runs[0].textId, "calm-precision");
+});
+
+test("random practice resolves to a concrete text and removes legacy typing keys", async () => {
+  const randomValues = [0, 0.99];
+  const dom = await createPage("index.html", ["texts.js", "script.js"], {
+    storage: {
+      "typist-typing-settings-v2": { selectedText: "random", chartScope: "text" },
+      "typist-heatmap:old": { runs: 99 },
+    },
+    beforeScripts(window) {
+      window.Math.random = () => randomValues.shift() ?? 0;
+    },
+  });
+  const { document, localStorage, Event } = dom.window;
+  const input = document.querySelector("#typingInput");
+  const prompt = [...document.querySelectorAll("#textDisplay .char")].map((character) => character.textContent).join("");
+  input.value = prompt;
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+
+  const runs = JSON.parse(localStorage.getItem("typist-typing-runs-v2"));
+  assert.equal(runs.runs.length, 1);
+  assert.notEqual(runs.runs[0].textId, "random");
+  assert.equal(localStorage.getItem("typist-heatmap:old"), null);
+
+  document.querySelector("#restartButton").click();
+  assert.notEqual(document.querySelector("#currentTextLabel").textContent, "");
+});
+
+test("chart scope switches from the active text to every stored text", async () => {
+  const runs = [
+    { textId: "calm-precision", completedAt: "2026-07-01T10:00:00.000Z", wordsPerMinute: 40, accuracy: 95, consistency: 88, typingScore: 126 },
+    { textId: "one-word", completedAt: "2026-07-02T10:00:00.000Z", wordsPerMinute: 55, accuracy: 92, consistency: 80, typingScore: 135 },
+  ];
+  const dom = await createPage("index.html", ["texts.js", "script.js"], {
+    storage: {
+      "typist-typing-settings-v2": { selectedText: "calm-precision", chartScope: "text" },
+      "typist-typing-runs-v2": { version: 2, runs },
+    },
+  });
+  const { document } = dom.window;
+  const progress = dom.window.__chartInstances.find((chart) => chart.canvas.id === "progressChart");
+  const tradeoff = dom.window.__chartInstances.find((chart) => chart.canvas.id === "tradeoffChart");
+  assert.equal(progress.data.datasets[0].data.length, 1);
+  assert.equal(tradeoff.data.datasets[0].data.length, 1);
+
+  const allScope = document.querySelector("#chartScopeAll");
+  allScope.checked = true;
+  allScope.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+  assert.equal(progress.data.datasets[0].data.length, 2);
+  assert.equal(tradeoff.data.datasets[0].data.length, 2);
+  assert.equal(progress.data.datasets[0].data[1].textTitle, "One word at a time");
+  assert.equal(tradeoff.data.datasets[0].data[1].textTitle, "One word at a time");
 });
 
 test("reaction test accepts warmup, records a hit, and completes on Escape", async () => {
