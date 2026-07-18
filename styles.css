@@ -372,11 +372,6 @@ button:hover {
   background: #f3c74f;
 }
 
-.char.current {
-  background: var(--current);
-  color: #16202a;
-}
-
 .char.prompt-space {
   white-space: pre;
 }

@@ -233,8 +233,6 @@ function renderPrompt() {
         if (typedCharacter === character && mistakeOffsets.has(offset)) span.classList.add("corrected");
       } else if (committed) {
         span.classList.add("incorrect");
-      } else if (isActive && offset === visibleBuffer.length) {
-        span.classList.add("current");
       }
       span.dataset.promptIndex = String(getPromptIndex(word, offset));
       wordElement.append(span);

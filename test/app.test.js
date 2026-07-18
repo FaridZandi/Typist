@@ -91,6 +91,7 @@ test("typing caret starts at the beginning of the active word", async () => {
   });
   const activeWord = dom.window.document.querySelector(".active-word");
   assert.equal(activeWord.firstElementChild.classList.contains("typing-caret"), true);
+  assert.equal(activeWord.querySelector(".current"), null);
 });
 
 test("typing commits one word, preserves a correction, and keeps extra letters local", async () => {
