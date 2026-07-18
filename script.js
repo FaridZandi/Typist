@@ -44,7 +44,7 @@ let words = getWords(activeText.body);
 let started = false;
 let finished = false;
 let timerId = null;
-let secondsLeft = activeText.durationSeconds || runLengthSeconds;
+let secondsLeft = getActiveRunLengthSeconds();
 let currentWordIndex = 0;
 let currentWordBuffer = "";
 let currentWordKeys = [];
@@ -173,6 +173,10 @@ function resolveText(selection) {
   return promptCatalog[Math.floor(Math.random() * promptCatalog.length)];
 }
 
+function getActiveRunLengthSeconds() {
+  return activeText.durationSeconds || runLengthSeconds;
+}
+
 function getWords(body) {
   return [...body.matchAll(/\S+/g)].map((match) => ({
     text: match[0],
@@ -271,6 +275,7 @@ function appendCaret(parent) {
 function startTimer() {
   if (started || finished) return;
   started = true;
+  textSelect.disabled = true;
   timerId = setInterval(() => {
     secondsLeft -= 1;
     updateStats();
@@ -401,9 +406,13 @@ function getProvisionalCounts() {
 
 function getMetrics() {
   const counts = getProvisionalCounts();
-  const minutesElapsed = Math.max((runLengthSeconds - secondsLeft) / 60, 1 / 60);
+  const minutesElapsed = Math.max(
+    (getActiveRunLengthSeconds() - secondsLeft) / 60,
+    1 / 60,
+  );
   const wordsPerMinute = Math.round(counts.correct / 5 / minutesElapsed);
-  const accuracy = counts.attempts === 0 ? 100 : Math.round((counts.correct / counts.attempts) * 100);
+  const attempts = counts.attempts + runExtraErrors;
+  const accuracy = attempts === 0 ? 100 : Math.round((counts.correct / attempts) * 100);
   return { wordsPerMinute, accuracy };
 }
 
@@ -430,10 +439,11 @@ function updateStats() {
 }
 
 function updateTimerProgress() {
-  const elapsedSeconds = (activeText.durationSeconds || runLengthSeconds) - secondsLeft;
-  const elapsedPercent = Math.max(0, Math.min(100, (elapsedSeconds / (activeText.durationSeconds || runLengthSeconds)) * 100));
+  const runLength = getActiveRunLengthSeconds();
+  const elapsedSeconds = runLength - secondsLeft;
+  const elapsedPercent = Math.max(0, Math.min(100, (elapsedSeconds / runLength) * 100));
   timerProgressFill.style.setProperty("--progress-width", `${elapsedPercent}%`);
-  timerProgress.setAttribute("aria-valuemax", String(activeText.durationSeconds || runLengthSeconds));
+  timerProgress.setAttribute("aria-valuemax", String(runLength));
   timerProgress.setAttribute("aria-valuenow", String(elapsedSeconds));
 }
 
@@ -452,6 +462,7 @@ function finishRun() {
   finalAccuracy.textContent = metrics.accuracy;
   finalScore.textContent = typingScore;
   typingInput.disabled = true;
+  textSelect.disabled = false;
   renderPrompt();
   renderLastRunResults(getSmoothedRunIntervals());
   commitRun(metrics, consistency, typingScore, getSmoothedRunIntervals());
@@ -697,12 +708,12 @@ function renderLastRunHistogram() {
 function resetRun({ chooseRandom = settings.selectedText === "random" } = {}) {
   if (chooseRandom) activeText = resolveText("random");
   words = getWords(activeText.body);
-  started = false; finished = false; secondsLeft = activeText.durationSeconds || runLengthSeconds;
+  started = false; finished = false; secondsLeft = getActiveRunLengthSeconds();
   focusRestartOnNextTab = false;
   clearInterval(timerId); timerId = null;
   currentWordIndex = 0; currentWordBuffer = ""; currentWordKeys = []; currentWordLastKeyTimes = new Map(); currentWordMistakeOffsets = new Set(); currentWordDeletedExtraErrors = 0; committedWords = [];
   runPromptAttempts = new Set(); runMistakes = new Set(); runIntervals = new Map(); runExpectedAttempts = 0; runCorrectCharacters = 0; runMistakeCount = 0; runExtraErrors = 0; previousMatchedTime = null;
-  typingInput.value = ""; typingInput.disabled = false;
+  typingInput.value = ""; typingInput.disabled = false; textSelect.disabled = false;
   speedValue.textContent = "0"; accuracyValue.textContent = "100"; consistencyValue.textContent = "100"; scoreValue.textContent = "100";
   resultPanel.hidden = true; lastRunSpeeds = []; lastRunHistogramBins = []; lastRunHeatmap.replaceChildren();
   updateTextSummary(); updateTimerProgress(); renderPrompt(); renderHeatmap(); renderSpeedChart();

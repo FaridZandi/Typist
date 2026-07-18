@@ -29,7 +29,7 @@ npm install
 npm test
 ```
 
-The tests run in JSDOM and cover the shared Dvorak renderer, typing alignment, input limits, timer expiry, and history behaviour, plus reaction-test completion, errors, target selection, malformed-storage recovery, key metrics, settings persistence, and metronome controls.
+The tests run in JSDOM and cover the shared Dvorak renderer, word commits, extra-character scoring, text-specific timing, input limits, timer expiry, and history behaviour, plus reaction-test completion, errors, target selection, malformed-storage recovery, key metrics, settings persistence, and metronome controls.
 
 ## Typing Test
 

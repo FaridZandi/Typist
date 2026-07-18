@@ -125,6 +125,88 @@ test("typing commits one word, preserves a correction, and keeps extra letters l
   }
 });
 
+test("committed extra characters lower typing accuracy", async () => {
+  const dom = await createPage("index.html", ["texts.js", "script.js"], {
+    storage: { "typist-typing-settings-v2": { selectedText: "calm-precision", chartScope: "text" } },
+  });
+  const { document } = dom.window;
+  const input = document.querySelector("#typingInput");
+  const type = (key) => input.dispatchEvent(
+    new dom.window.KeyboardEvent("keydown", { bubbles: true, cancelable: true, key }),
+  );
+
+  try {
+    for (const key of "Typingx") type(key);
+    type(" ");
+
+    assert.equal(document.querySelector("#accuracyValue").textContent, "88");
+  } finally {
+    document.querySelector("#restartButton").click();
+    dom.window.close();
+  }
+});
+
+test("selected text duration controls WPM timing and progress semantics", async () => {
+  const intervalCallbacks = [];
+  const dom = await createPage("index.html", ["script.js"], {
+    storage: { "typist-typing-settings-v2": { selectedText: "short", chartScope: "text" } },
+    beforeScripts(window) {
+      window.typingTexts = [{
+        id: "short",
+        title: "Short piece",
+        body: "Typing practice.",
+        durationSeconds: 30,
+      }];
+      window.setInterval = (callback) => {
+        intervalCallbacks.push(callback);
+        return intervalCallbacks.length;
+      };
+      window.clearInterval = () => {};
+    },
+  });
+  const { document } = dom.window;
+  const input = document.querySelector("#typingInput");
+
+  input.dispatchEvent(new dom.window.KeyboardEvent("keydown", {
+    bubbles: true,
+    cancelable: true,
+    key: "T",
+  }));
+  for (let second = 0; second < 15; second += 1) intervalCallbacks[0]();
+
+  assert.equal(document.querySelector(".timer-progress").getAttribute("aria-valuemax"), "30");
+  assert.equal(document.querySelector("#speedValue").textContent, "1");
+  document.querySelector("#restartButton").click();
+  dom.window.close();
+});
+
+test("text selection is locked during a run and restored after reset or completion", async () => {
+  const dom = await createPage("index.html", ["texts.js", "script.js"], {
+    storage: { "typist-typing-settings-v2": { selectedText: "calm-precision", chartScope: "text" } },
+  });
+  const { document, Event } = dom.window;
+  const input = document.querySelector("#typingInput");
+  const select = document.querySelector("#textSelect");
+  const prompt = [...document.querySelectorAll("#textDisplay .char")]
+    .map((character) => character.textContent)
+    .join("");
+
+  assert.equal(select.disabled, false);
+  input.dispatchEvent(new dom.window.KeyboardEvent("keydown", {
+    bubbles: true,
+    cancelable: true,
+    key: "T",
+  }));
+  assert.equal(select.disabled, true);
+
+  document.querySelector("#restartButton").click();
+  assert.equal(select.disabled, false);
+  input.value = prompt;
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+  assert.equal(document.querySelector("#resultPanel").hidden, false);
+  assert.equal(select.disabled, false);
+});
+
 test("typing history can be cleared across the v2 stores", async () => {
   const dom = await createPage("index.html", ["texts.js", "script.js"]);
   const { document, Event, localStorage } = dom.window;
