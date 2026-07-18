@@ -135,6 +135,7 @@ test("typing history can be cleared across the v2 stores", async () => {
 
   input.value = prompt;
   input.dispatchEvent(new Event("input", { bubbles: true }));
+  dom.window.confirm = () => true;
   document.querySelector("#clearHistoryButton").click();
 
   assert.equal(document.querySelector("#heatmapRuns").textContent, "0");
@@ -142,6 +143,20 @@ test("typing history can be cleared across the v2 stores", async () => {
   const savedRuns = JSON.parse(localStorage.getItem("typist-typing-runs-v2"));
   assert.deepEqual(savedStats, { version: 2, texts: {} });
   assert.deepEqual(savedRuns, { version: 2, runs: [] });
+});
+
+test("cancelling the clear-history confirmation preserves the completed run", async () => {
+  const dom = await createPage("index.html", ["texts.js", "script.js"]);
+  const { document, Event } = dom.window;
+  const input = document.querySelector("#typingInput");
+  const prompt = [...document.querySelectorAll("#textDisplay .char")].map((character) => character.textContent).join("");
+
+  input.value = prompt;
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+  dom.window.confirm = () => false;
+  document.querySelector("#clearHistoryButton").click();
+
+  assert.equal(document.querySelector("#heatmapRuns").textContent, "1");
 });
 
 test("typing commits omitted prompt characters as errors", async () => {

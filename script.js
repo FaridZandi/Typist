@@ -734,6 +734,7 @@ chartScopeInputs.forEach((input) => input.addEventListener("change", () => {
   renderProgressChart(); renderTradeoffChart();
 }));
 clearHistoryButton.addEventListener("click", () => {
+  if (!window.confirm("Clear all typing history and character statistics? This cannot be undone.")) return;
   statsStore = { version: 2, texts: {} };
   runsStore = { version: 2, runs: [] };
   saveStores();
