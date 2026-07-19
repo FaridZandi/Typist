@@ -21,6 +21,7 @@
           </div>
         </header>
 
+        <div id="testView" class="app-view">
         <section class="text-picker" aria-labelledby="textPickerTitle">
           <div class="text-picker-lead">
             <p class="eyebrow" id="textPickerTitle">Practice piece</p>
@@ -49,10 +50,12 @@
         <label class="visually-hidden" for="typingInput">Keyboard input</label>
         <textarea id="typingInput" class="typing-input" autocomplete="off" autocapitalize="off" spellcheck="false" rows="1" aria-describedby="typingInputDescription"></textarea>
         <span id="typingInputDescription" class="visually-hidden">Your keystrokes are captured here while the prompt remains the visible typing surface.</span>
+        </div>
 
+        <section id="resultsView" class="app-view" aria-labelledby="resultTitle" hidden>
         <div id="resultPanel" class="result-panel" hidden>
           <p class="eyebrow">Reflection</p>
-          <h2>Run complete</h2>
+          <h2 id="resultTitle" tabindex="-1">Run complete</h2>
           <p><span id="finalSpeed">0</span> WPM with <span id="finalAccuracy">100</span>% accuracy and a <span id="finalScore">100</span> typing score.</p>
           <div class="run-detail-grid">
             <section aria-labelledby="lastRunHeatmapTitle">
@@ -118,6 +121,7 @@
         <footer class="history-footer">
           <button id="clearHistoryButton" type="button" class="secondary-button analytics-history-button">Clear history</button>
         </footer>
+        </section>
       </section>
     </main>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.min.js"></script>

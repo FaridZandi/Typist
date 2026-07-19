@@ -78,6 +78,8 @@ test("typing test records a completed text-id run and renders its results", asyn
   input.dispatchEvent(new Event("input", { bubbles: true }));
 
   assert.equal(document.querySelector("#resultPanel").hidden, false);
+  assert.equal(document.querySelector("#testView").hidden, true);
+  assert.equal(document.querySelector("#resultsView").hidden, false);
   assert.equal(document.querySelector("#heatmapRuns").textContent, "1");
   assert.equal(input.disabled, true);
   assert.match(document.querySelector("#finalSpeed").textContent, /^\d+$/);
@@ -94,6 +96,61 @@ test("typing caret starts at the beginning of the active word", async () => {
   const activeWord = dom.window.document.querySelector(".active-word");
   assert.equal(activeWord.firstElementChild.classList.contains("typing-caret"), true);
   assert.equal(activeWord.querySelector(".current"), null);
+});
+
+test("typing renders the caret before deferred metric updates", async () => {
+  const frames = [];
+  const dom = await createPage("index.html", ["texts.js", "script.js"], {
+    storage: { "typist-typing-settings-v2": { selectedText: "calm-precision", chartScope: "text" } },
+    beforeScripts(window) {
+      window.requestAnimationFrame = (callback) => {
+        frames.push(callback);
+        return frames.length;
+      };
+    },
+  });
+  const { document } = dom.window;
+  const input = document.querySelector("#typingInput");
+
+  try {
+    input.dispatchEvent(new dom.window.KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      key: "T",
+    }));
+
+    const activeWord = document.querySelector(".active-word");
+    const caret = activeWord.querySelector(".typing-caret");
+    assert.equal(caret.previousElementSibling.textContent, "T");
+    assert.equal(document.querySelector("#speedValue").textContent, "0");
+    assert.equal(frames.length, 1);
+
+    frames.shift()();
+    assert.equal(frames.length, 1);
+    frames.shift()();
+    assert.notEqual(document.querySelector("#speedValue").textContent, "0");
+  } finally {
+    document.querySelector("#restartButton").click();
+    dom.window.close();
+  }
+});
+
+test("typing consistency uses every key press, including mistakes", async () => {
+  const dom = await createPage("index.html", ["texts.js", "script.js"], {
+    storage: { "typist-typing-settings-v2": { selectedText: "calm-precision", chartScope: "text" } },
+  });
+  const { document } = dom.window;
+
+  try {
+    dom.window.handleCharacter("x", 0);
+    dom.window.handleCharacter("x", 100);
+    dom.window.handleCharacter("x", 1000);
+
+    assert.equal(document.querySelector("#consistencyValue").textContent, "20");
+  } finally {
+    document.querySelector("#restartButton").click();
+    dom.window.close();
+  }
 });
 
 test("typing commits one word, preserves a correction, and keeps extra letters local", async () => {
@@ -204,6 +261,8 @@ test("text selection is locked during a run and restored after reset or completi
 
   document.querySelector("#restartButton").click();
   assert.equal(select.disabled, false);
+  assert.equal(document.querySelector("#testView").hidden, false);
+  assert.equal(document.querySelector("#resultsView").hidden, true);
   input.value = prompt;
   input.dispatchEvent(new Event("input", { bubbles: true }));
   assert.equal(document.querySelector("#resultPanel").hidden, false);

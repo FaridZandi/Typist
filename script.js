@@ -10,6 +10,8 @@ const promptCatalog = typeof typingTexts === "undefined" && !window.typingTexts
 
 const textDisplay = document.querySelector("#textDisplay");
 const typingInput = document.querySelector("#typingInput");
+const testView = document.querySelector("#testView");
+const resultsView = document.querySelector("#resultsView");
 const restartButton = document.querySelector("#restartButton");
 const clearHistoryButton = document.querySelector("#clearHistoryButton");
 const textSelect = document.querySelector("#textSelect");
@@ -20,6 +22,7 @@ const accuracyValue = document.querySelector("#accuracyValue");
 const consistencyValue = document.querySelector("#consistencyValue");
 const scoreValue = document.querySelector("#scoreValue");
 const resultPanel = document.querySelector("#resultPanel");
+const resultTitle = document.querySelector("#resultTitle");
 const lastRunHeatmapTitle = document.querySelector("#lastRunHeatmapTitle");
 const finalSpeed = document.querySelector("#finalSpeed");
 const finalAccuracy = document.querySelector("#finalAccuracy");
@@ -63,6 +66,8 @@ let runCorrectCharacters = 0;
 let runMistakeCount = 0;
 let runExtraErrors = 0;
 let previousMatchedTime = null;
+let previousKeyTime = null;
+let runKeyIntervals = [];
 let statsStore = loadStatsStore();
 let runsStore = loadRunsStore();
 let progressChart = null;
@@ -71,6 +76,7 @@ let lastRunHistogram = null;
 let lastRunSpeeds = [];
 let lastRunHistogramBins = [];
 let focusRestartOnNextTab = false;
+let presentationUpdateScheduled = false;
 
 function safeRead(key, fallback) {
   try {
@@ -293,6 +299,7 @@ function getNow() {
 function handleCharacter(character, timestamp = getNow()) {
   if (finished || character === " " || currentWordIndex >= words.length) return;
   startTimer();
+  recordKeyTiming(timestamp);
   const offset = currentWordBuffer.length;
   const expected = words[currentWordIndex].text[offset];
   currentWordBuffer += character;
@@ -300,38 +307,63 @@ function handleCharacter(character, timestamp = getNow()) {
   currentWordLastKeyTimes.set(offset, timestamp);
   if (expected !== character) currentWordMistakeOffsets.add(offset);
   renderPrompt();
-  updateStats();
   const isFinalWord = currentWordIndex === words.length - 1;
   if (isFinalWord && currentWordBuffer.length >= words[currentWordIndex].text.length && [...currentWordBuffer].every((value, index) => value === words[currentWordIndex].text[index])) {
     commitCurrentWord(timestamp, false);
     finishRun();
+    return;
   }
+  schedulePresentationUpdate();
 }
 
 function handleBackspace(timestamp = getNow()) {
   if (finished || currentWordBuffer.length === 0) return;
   startTimer();
+  recordKeyTiming(timestamp);
   const removedOffset = currentWordBuffer.length - 1;
   if (removedOffset >= words[currentWordIndex].text.length) currentWordDeletedExtraErrors += 1;
   currentWordBuffer = [...currentWordBuffer].slice(0, -1).join("");
   currentWordKeys.push({ character: "Backspace", offset: removedOffset, timestamp });
   renderPrompt();
-  updateStats();
+  schedulePresentationUpdate();
 }
 
 function handleSpace(timestamp = getNow()) {
   if (finished) return;
   startTimer();
+  recordKeyTiming(timestamp);
   commitCurrentWord(timestamp, true);
   renderPrompt();
-  updateStats();
   if (currentWordIndex >= words.length) finishRun();
+  else schedulePresentationUpdate();
+}
+
+function schedulePresentationUpdate() {
+  if (presentationUpdateScheduled || finished) return;
+  presentationUpdateScheduled = true;
+  const requestFrame = window.requestAnimationFrame ?? ((callback) => callback());
+
+  requestFrame(() => {
+    requestFrame(() => {
+      presentationUpdateScheduled = false;
+      updateStats();
+      renderPrompt();
+    });
+  });
 }
 
 function recordMatchedTiming(promptIndex, timestamp) {
   if (!Number.isFinite(timestamp)) return;
   if (previousMatchedTime !== null && timestamp > previousMatchedTime) runIntervals.set(promptIndex, timestamp - previousMatchedTime);
   previousMatchedTime = timestamp;
+}
+
+function recordKeyTiming(timestamp) {
+  if (!Number.isFinite(timestamp)) return;
+  if (previousKeyTime !== null && timestamp > previousKeyTime) {
+    runKeyIntervals.push(timestamp - previousKeyTime);
+  }
+  previousKeyTime = timestamp;
 }
 
 function commitCurrentWord(separatorTimestamp = getNow(), includeSeparator) {
@@ -433,7 +465,7 @@ function getRunConsistency(intervals) {
 
 function updateStats() {
   const metrics = getMetrics();
-  const consistency = getRunConsistency(runIntervals);
+  const consistency = getRunConsistency(runKeyIntervals);
   speedValue.textContent = metrics.wordsPerMinute;
   accuracyValue.textContent = metrics.accuracy;
   consistencyValue.textContent = consistency;
@@ -454,11 +486,12 @@ function finishRun() {
   if (finished) return;
   if (currentWordIndex < words.length) commitCurrentWord(getNow(), false);
   finished = true;
+  presentationUpdateScheduled = false;
   focusRestartOnNextTab = true;
   clearInterval(timerId);
   timerId = null;
   const metrics = getMetrics();
-  const consistency = getRunConsistency(runIntervals);
+  const consistency = getRunConsistency(runKeyIntervals);
   const typingScore = getTypingScore(metrics.wordsPerMinute, metrics.accuracy, consistency);
   resultPanel.hidden = false;
   finalSpeed.textContent = metrics.wordsPerMinute;
@@ -466,10 +499,17 @@ function finishRun() {
   finalScore.textContent = typingScore;
   typingInput.disabled = true;
   textSelect.disabled = false;
+  testView.hidden = true;
+  resultsView.hidden = false;
   renderPrompt();
   renderLastRunResults(getSmoothedRunIntervals());
   commitRun(metrics, consistency, typingScore, getSmoothedRunIntervals());
   updateStats();
+  const afterLayout = window.requestAnimationFrame ?? ((callback) => callback());
+  afterLayout(() => {
+    progressChart?.resize?.();
+    resultTitle.focus();
+  });
 }
 
 function commitRun(metrics, consistency, typingScore, smoothedIntervals) {
@@ -723,12 +763,13 @@ function resetRun({ chooseRandom = settings.selectedText === "random" } = {}) {
   words = getWords(activeText.body);
   started = false; finished = false; secondsLeft = getActiveRunLengthSeconds();
   focusRestartOnNextTab = false;
+  presentationUpdateScheduled = false;
   clearInterval(timerId); timerId = null;
   currentWordIndex = 0; currentWordBuffer = ""; currentWordKeys = []; currentWordLastKeyTimes = new Map(); currentWordMistakeOffsets = new Set(); currentWordDeletedExtraErrors = 0; committedWords = [];
-  runPromptAttempts = new Set(); runMistakes = new Set(); runIntervals = new Map(); runExpectedAttempts = 0; runCorrectCharacters = 0; runMistakeCount = 0; runExtraErrors = 0; previousMatchedTime = null;
+  runPromptAttempts = new Set(); runMistakes = new Set(); runIntervals = new Map(); runExpectedAttempts = 0; runCorrectCharacters = 0; runMistakeCount = 0; runExtraErrors = 0; previousMatchedTime = null; previousKeyTime = null; runKeyIntervals = [];
   typingInput.value = ""; typingInput.disabled = false; textSelect.disabled = false;
   speedValue.textContent = "0"; accuracyValue.textContent = "100"; consistencyValue.textContent = "100"; scoreValue.textContent = "100";
-  resultPanel.hidden = true; lastRunSpeeds = []; lastRunHistogramBins = []; lastRunHeatmap.replaceChildren();
+  testView.hidden = false; resultsView.hidden = true; resultPanel.hidden = true; lastRunSpeeds = []; lastRunHistogramBins = []; lastRunHeatmap.replaceChildren();
   updateTextSummary(); updateTimerProgress(); renderPrompt(); renderHeatmap(); renderSpeedChart();
   typingInput.focus();
 }
