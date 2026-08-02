@@ -106,7 +106,7 @@
               <button id="errorsTab" class="view-tab" type="button" role="tab" aria-selected="false" aria-controls="errorDetails" data-result-tab="errors">Errors</button>
               <button id="keysTab" class="view-tab" type="button" role="tab" aria-selected="false" aria-controls="transitionDetails" data-result-tab="keys">Keys</button>
               <button id="wordsTab" class="view-tab" type="button" role="tab" aria-selected="false" aria-controls="wordDetails" data-result-tab="words">Words</button>
-              <button id="progressTab" class="view-tab" type="button" role="tab" aria-selected="false" aria-controls="progressDetails" data-result-tab="progress">Progress</button>
+              <button id="runProgressTab" class="view-tab" type="button" role="tab" aria-selected="false" aria-controls="progressDetails" data-result-tab="progress">Progress</button>
             </div>
             <section id="rhythmDetails" class="result-analysis-panel" role="tabpanel" aria-labelledby="rhythmTab" data-result-panel="rhythm">
               <p id="rhythmDetailSummary" class="analysis-panel-summary">Inter-key timing and pauses</p>
@@ -128,7 +128,7 @@
               <p id="wordDetailIntro" class="detail-intro"></p>
               <ul id="wordList" class="error-category-list"></ul>
             </section>
-            <section id="progressDetails" class="result-analysis-panel" role="tabpanel" aria-labelledby="progressTab" data-result-panel="progress" hidden>
+            <section id="progressDetails" class="result-analysis-panel" role="tabpanel" aria-labelledby="runProgressTab" data-result-panel="progress" hidden>
               <p id="progressDetailSummary" class="analysis-panel-summary">Progress on this piece</p>
               <p id="progressDetailIntro" class="detail-intro"></p>
             </section>
@@ -191,7 +191,6 @@
       </section>
     </main>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.min.js"></script>
-    <script src="texts.js"></script>
-    <script src="script.js"></script>
+    <script type="module" src="src/boot.js"></script>
   </body>
 </html>

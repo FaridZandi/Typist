@@ -4,9 +4,10 @@
   "version": "1.0.0",
   "description": "Browser-based typing and reaction practice.",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test 'test/*.test.js'"
   },
   "devDependencies": {
     "jsdom": "^26.1.0"
-  }
+  },
+  "type": "module"
 }

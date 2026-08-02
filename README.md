@@ -10,26 +10,41 @@ The app is static HTML/CSS/JavaScript. There is no build step.
 
 ## Running
 
-Open any page directly in a browser:
+The typing page loads as ES modules, so it must be served over HTTP rather than
+opened from the filesystem — browsers block module requests on `file://`. Serve
+the project root and open the pages from there:
+
+```sh
+python3 -m http.server 8000
+```
 
 ```text
-index.html
-reaction.html
-dvorak.html
+http://localhost:8000/index.html
+http://localhost:8000/reaction.html
+http://localhost:8000/dvorak.html
 ```
 
 For the chart features, an internet connection is needed because Chart.js is loaded from a CDN.
 
 ## Testing
 
-Install the development dependency, then run the browser-flow tests:
+Install the development dependency, then run the tests:
 
 ```sh
 npm install
 npm test
 ```
 
-The tests run in JSDOM and cover the shared Dvorak renderer, word commits, extra-character scoring, text-specific timing, input limits, timer expiry, history behaviour, and analytics tab interactions, plus reaction-test completion, errors, target selection, malformed-storage recovery, key metrics, settings persistence, and metronome controls.
+The suite is split by what each test needs:
+
+- `test/analysis.test.js` imports the analysis modules directly, with no DOM and
+  no page boot, and covers aggregation thresholds, feedback ranking, progress
+  states, fluency, difficulty, and annotation categories.
+- `test/app.test.js` boots `index.html` in JSDOM and drives the real page:
+  word commits, extra-character scoring, text-specific timing, timer expiry,
+  passage annotations, history behaviour, and tab interactions.
+- `test/reaction.test.js` covers the reaction test and the shared Dvorak
+  renderer, which are still classic scripts evaluated inside JSDOM.
 
 ## Typing Test
 
@@ -83,9 +98,26 @@ Reaction history is stored in `localStorage`.
 ## Files
 
 - `index.html`: typing test UI
-- `texts.js`: typing prompt catalog
-- `script.js`: typing test logic
 - `reaction.html`: reaction test UI
 - `reaction.js`: reaction test logic
 - `dvorak.html`: standalone Dvorak schematic
+- `keyboard-layout.js`: shared Dvorak renderer
 - `styles.css`: shared styling
+
+The typing test is split into modules under `src/`, layered so that nothing
+below the view layer knows the DOM exists:
+
+- `boot.js`: browser entry point
+- `main.js`: element lookups, session state, and event wiring
+- `run-engine.js`: the keystroke state machine and completed-run summary
+- `storage.js`: versioned `localStorage` records
+- `texts.js`: typing prompt catalog
+- `text-model.js`: word boundaries, run length, difficulty estimate
+- `alignment.js`: prompt-to-typed alignment and error categories
+- `metrics.js`: scoring and timing maths
+- `aggregates.js`: cross-run character, n-gram, word, and Shift aggregation
+- `progress.js`: progress states over a series of runs
+- `feedback.js`: ranked observations and the primary recommendation
+- `annotations.js`: derived passage annotations
+- `charts.js`: Chart.js wrappers
+- `view/`: prompt, heatmap, and result-screen rendering

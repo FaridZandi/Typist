@@ -1,6 +1,6 @@
 // Prompt catalog for typing practice. Keeping the copy here makes the typing
 // engine independent from the content and lets each prompt have its own stats.
-const typingTexts = Object.freeze([
+export const typingTexts = Object.freeze([
   Object.freeze({
     id: "calm-precision",
     title: "Calm precision",
@@ -98,7 +98,3 @@ const typingTexts = Object.freeze([
     durationSeconds: 60,
   }),
 ]);
-
-// The explicit window reference also makes the catalog available to embedded
-// harnesses that evaluate the two classic scripts separately.
-window.typingTexts = typingTexts;
