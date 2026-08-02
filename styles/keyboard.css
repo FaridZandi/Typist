@@ -1,0 +1,55 @@
+/* Dvorak keyboard schematic, shared by the reaction heatmaps. */
+
+.keyboard-page {
+  width: min(760px, calc(100% - 32px));
+  min-height: 100vh;
+  margin: 0 auto;
+  display: grid;
+  place-items: center;
+  padding: 24px 0;
+}
+
+.keyboard-shell {
+  width: 100%;
+  display: grid;
+  gap: 6px;
+}
+
+.keyboard-row {
+  display: grid;
+  gap: 5px;
+}
+
+.number-row {
+  grid-template-columns: repeat(13, minmax(38px, 1fr));
+}
+
+.top-letter-row {
+  grid-template-columns: repeat(13, minmax(38px, 1fr));
+  padding-left: calc((100% - 12 * 8px) / 13 * 0.55);
+}
+
+.home-row {
+  grid-template-columns: repeat(11, minmax(38px, 1fr));
+  padding-left: calc((100% - 10 * 8px) / 11 * 0.9);
+  padding-right: calc((100% - 10 * 8px) / 11 * 0.4);
+}
+
+.lower-row {
+  grid-template-columns: repeat(10, minmax(38px, 1fr));
+  padding-left: calc((100% - 9 * 8px) / 10 * 1.6);
+  padding-right: calc((100% - 9 * 8px) / 10 * 1.2);
+}
+
+.key {
+  min-height: clamp(28px, 4.2vw, 42px);
+  display: grid;
+  place-items: center;
+  border: 1px solid #cbd5df;
+  border-radius: 4px;
+  background: #ffffff;
+  color: var(--ink);
+  font-size: clamp(0.74rem, 1.8vw, 0.95rem);
+  font-weight: 700;
+}
+

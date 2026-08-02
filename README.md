@@ -10,9 +10,9 @@ The app is static HTML/CSS/JavaScript. There is no build step.
 
 ## Running
 
-The typing page loads as ES modules, so it must be served over HTTP rather than
-opened from the filesystem — browsers block module requests on `file://`. Serve
-the project root and open the pages from there:
+All three pages load as ES modules, so they must be served over HTTP rather
+than opened from the filesystem — browsers block module requests on `file://`.
+Serve the project root and open the pages from there:
 
 ```sh
 python3 -m http.server 8000
@@ -43,8 +43,9 @@ The suite is split by what each test needs:
 - `test/app.test.js` boots `index.html` in JSDOM and drives the real page:
   word commits, extra-character scoring, text-specific timing, timer expiry,
   passage annotations, history behaviour, and tab interactions.
-- `test/reaction.test.js` covers the reaction test and the shared Dvorak
-  renderer, which are still classic scripts evaluated inside JSDOM.
+- `test/reaction.test.js` boots `reaction.html` and covers warm-up, hits,
+  errors, target selection, malformed-storage recovery, key metrics, settings
+  persistence, and metronome controls, plus the shared Dvorak renderer.
 
 ## Typing Test
 
@@ -97,15 +98,14 @@ Reaction history is stored in `localStorage`.
 
 ## Files
 
-- `index.html`: typing test UI
-- `reaction.html`: reaction test UI
-- `reaction.js`: reaction test logic
-- `dvorak.html`: standalone Dvorak schematic
-- `keyboard-layout.js`: shared Dvorak renderer
-- `styles.css`: shared styling
+- `index.html`, `reaction.html`, `dvorak.html`: the three pages
+- `styles/`: stylesheets, imported in cascade order by `styles/index.css`
+- `src/`: application modules
+- `test/`: test suite
+- `thinking/`: design notes, roadmaps, and the backlog
 
-The typing test is split into modules under `src/`, layered so that nothing
-below the view layer knows the DOM exists:
+Both tests are split into modules under `src/`, layered so that nothing below
+the view layer knows the DOM exists. The typing test lives in `src/`:
 
 - `boot.js`: browser entry point
 - `main.js`: element lookups, session state, and event wiring
@@ -121,3 +121,16 @@ below the view layer knows the DOM exists:
 - `annotations.js`: derived passage annotations
 - `charts.js`: Chart.js wrappers
 - `view/`: prompt, heatmap, and result-screen rendering
+
+The reaction test mirrors it in `src/reaction/`:
+
+- `boot.js` / `main.js`: entry point and wiring
+- `storage.js`: history, per-key statistics, and settings
+- `key-stats.js`: per-key accuracy and reaction-time records
+- `targeting.js`: weighted target selection
+- `metrics.js`: run averages, accuracy, and percentiles
+- `metronome.js`: the optional visual beat
+- `charts.js` and `view/keyboards.js`: history chart and key heatmaps
+
+`src/shared/keyboard-layout.js` holds the Dvorak schematic used by both the
+standalone page and the reaction heatmaps.

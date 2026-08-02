@@ -1,0 +1,198 @@
+/* Text picker, top bar, buttons, toggles, and the metronome control. */
+
+.text-picker {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 0.85fr);
+  align-items: end;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.text-picker-lead {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  min-width: 0;
+}
+
+.text-picker-lead .eyebrow {
+  flex-basis: 100%;
+}
+
+.text-picker-lead strong {
+  font-size: 1.15rem;
+}
+
+.text-select-label {
+  display: grid;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.text-select-label select {
+  min-height: 42px;
+  width: 100%;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+}
+
+.text-picker-lead span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.text-summary strong {
+  color: var(--ink);
+  font-size: 1rem;
+}
+
+.top-bar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: clamp(2rem, 4vw, 3rem);
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.top-bar p {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+button {
+  min-height: 42px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #ffffff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+button:hover {
+  background: var(--accent-strong);
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.focus-control,
+.metronome-control {
+  display: grid;
+  grid-template-columns: auto minmax(90px, 140px) 2ch;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.metronome-control {
+  grid-template-columns: auto minmax(90px, 140px) 56px;
+}
+
+.focus-control input,
+.metronome-control input {
+  width: 100%;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.focus-control input:disabled,
+.metronome-control input:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.focus-control output,
+.metronome-control output {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.character-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.character-toggle input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.character-toggle:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.character-toggle input:disabled {
+  cursor: not-allowed;
+}
+
+.secondary-link {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  border-radius: 6px;
+  background: #e8eef3;
+  color: var(--ink);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.secondary-link:hover {
+  background: #d8e0e8;
+}
+
+.secondary-button {
+  background: #e8eef3;
+  color: var(--ink);
+}
+
+.secondary-button:hover {
+  background: #d8e0e8;
+}
+

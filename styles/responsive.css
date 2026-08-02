@@ -1,0 +1,119 @@
+/* Narrow-viewport overrides. */
+
+@media (max-width: 680px) {
+  .top-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .button-row {
+    flex-direction: column;
+  }
+
+  .heatmap-mode-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .focus-control,
+  .metronome-control,
+  .character-toggle {
+    width: 100%;
+  }
+
+  .secondary-link {
+    width: 100%;
+  }
+
+  button {
+    width: 100%;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .text-picker {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .text-display {
+    min-height: 160px;
+    padding: 16px;
+  }
+
+  .reaction-stage {
+    grid-template-columns: 1fr;
+    min-height: 0;
+    padding: 16px;
+  }
+
+  .target-letter {
+    min-height: 180px;
+  }
+
+  .reaction-result-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .run-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .analytics-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .analytics-heading {
+    align-items: baseline;
+  }
+
+  .history-footer .analytics-history-button {
+    width: auto;
+    align-self: flex-start;
+  }
+
+  .analytics-controls {
+    width: 100%;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .view-tabs {
+    width: 100%;
+  }
+
+  .view-tab {
+    flex: 1;
+  }
+
+  .legend-bar {
+    flex: 1;
+  }
+
+  .progress-chart-wrap,
+  .chart-wrap {
+    height: 300px;
+  }
+
+  .keyboard-page {
+    width: min(100% - 16px, 1180px);
+    overflow-x: auto;
+    place-items: center start;
+  }
+
+  .keyboard-shell {
+    min-width: 560px;
+  }
+
+  .chart-section-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .square-chart-wrap {
+    height: 360px;
+  }
+}

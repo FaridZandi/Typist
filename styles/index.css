@@ -1,0 +1,11 @@
+/* Style entry point. Parts are imported in cascade order. */
+
+@import "./base.css";
+@import "./controls.css";
+@import "./typing.css";
+@import "./reaction.css";
+@import "./results.css";
+@import "./analytics.css";
+@import "./utilities.css";
+@import "./keyboard.css";
+@import "./responsive.css";

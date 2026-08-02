@@ -1,0 +1,286 @@
+/* Analytics sections, view tabs, heatmaps, and chart wrappers. */
+
+.analytics-section {
+  min-width: 0;
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+/* Reaction mode retains its standalone analytics sections. */
+.progress-section {
+  min-width: 0;
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.progress-header h2 {
+  font-size: 1.25rem;
+}
+
+.progress-header p:not(.eyebrow) {
+  margin-top: 6px;
+  color: var(--muted);
+}
+
+.keyboard-metrics-section {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.heatmap-mode-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.metric-mode-control {
+  flex: 0 0 auto;
+  display: inline-flex;
+  margin: 0;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #eef2f6;
+}
+
+.metric-mode-control legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.metric-mode-control label {
+  cursor: pointer;
+}
+
+.metric-mode-control input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.metric-mode-control span {
+  min-height: 32px;
+  display: grid;
+  place-items: center;
+  padding: 0 12px;
+  border-radius: 4px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.metric-mode-control input:checked + span {
+  background: #ffffff;
+  color: var(--ink);
+  box-shadow: 0 1px 3px rgba(22, 32, 42, 0.16);
+}
+
+.metric-mode-control input:focus-visible + span {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.reaction-keyboard-wrap {
+  margin-top: 14px;
+  overflow-x: auto;
+}
+
+.reaction-keyboard {
+  min-width: 560px;
+}
+
+.reaction-keyboard .key {
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease;
+}
+
+.reaction-keyboard .key-untracked {
+  background: #f8fafc;
+  color: var(--muted);
+}
+
+.analytics-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 10px;
+}
+
+.analytics-header h2 {
+  font-size: 1.25rem;
+}
+
+.analytics-header p:not(.eyebrow) {
+  margin-top: 6px;
+  color: var(--muted);
+}
+
+.analytics-heading {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+
+.analytics-heading .analytics-meta {
+  margin: 0;
+  font-size: 0.86rem;
+}
+
+.analytics-history-button {
+  min-height: 34px;
+  padding: 0 12px;
+  font-size: 0.86rem;
+}
+
+.history-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.analytics-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.view-tabs {
+  display: inline-flex;
+  gap: 4px;
+  margin-bottom: 10px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #eef2f6;
+}
+
+.analytics-header .view-tabs {
+  margin: 0;
+}
+
+.view-tab {
+  width: auto;
+  min-height: 34px;
+  padding: 0 13px;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.view-tab:hover {
+  background: rgba(255, 255, 255, 0.62);
+  color: var(--ink);
+}
+
+.view-tab[aria-selected="true"] {
+  background: #ffffff;
+  color: var(--ink);
+  box-shadow: 0 1px 3px rgba(22, 32, 42, 0.16);
+}
+
+.view-tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.view-panel h3 {
+  margin: 0 0 6px;
+  font-size: 1.1rem;
+}
+
+.heatmap-with-legend {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.heatmap-legend {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 64px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1;
+  text-align: center;
+}
+
+.heatmap-legend span {
+  white-space: nowrap;
+}
+
+.heatmap-legend-bar {
+  width: 10px;
+  flex: 1;
+  min-height: 78px;
+  margin: 6px 0;
+  border-radius: 999px;
+  background: linear-gradient(to top, var(--bad), #d8b334, var(--good));
+}
+
+.heatmap-display {
+  min-height: 120px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfe;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: clamp(1rem, 1.8vw, 1.18rem);
+  line-height: 1.9;
+}
+
+.heatmap-char {
+  display: inline;
+  border-radius: 3px;
+  padding: 1px 0;
+  color: #101820;
+}
+
+.heatmap-char.untracked {
+  background: #e8eef3;
+  color: var(--muted);
+}
+
+.progress-chart-wrap,
+.chart-wrap {
+  position: relative;
+  height: 280px;
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfe;
+}
+
+.square-chart-wrap {
+  width: 100%;
+  height: 360px;
+}
+
+.chart-section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.chart-section-header h2 {
+  margin-top: 4px;
+  font-size: 1.25rem;
+}
+
