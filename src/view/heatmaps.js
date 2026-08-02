@@ -1,6 +1,10 @@
-// Per-character heatmaps over the practice text. A character is only coloured
-// once it has been attempted in enough runs to say anything; everything else
-// stays explicitly untracked rather than guessing.
+// Per-character colouring of the practice text. Each builder turns statistics
+// into a list of cells, and one painter puts them on the passage — so the
+// result screen shows a single passage that changes what it encodes, rather
+// than one passage per metric.
+//
+// A character is only coloured once it has been attempted in enough runs to
+// mean anything; everything else stays explicitly untracked.
 
 import { minimumCoverageRatio } from "../config.js";
 
@@ -42,78 +46,83 @@ export function isSpeedInBin(speed, bin, bins) {
   return last ? speed >= bin.min && speed <= bin.max : speed >= bin.min && speed < bin.max;
 }
 
-export function renderAccuracyHeatmap({ elements, document, text, stats }) {
-  elements.heatmapDisplay.replaceChildren();
-  elements.heatmapRuns.textContent = stats.runs;
-  const accuracies = stats.characters.map((_, index) => getCharacterAccuracy(index, stats)).filter((value) => value !== null);
-  const lowest = accuracies.length ? Math.min(...accuracies) : null;
-  const highest = accuracies.length ? Math.max(...accuracies) : null;
-  elements.accuracyLegendLowest.textContent = lowest === null ? "—" : `${lowest}%`;
-  elements.accuracyLegendHighest.textContent = highest === null ? "—" : `${highest}%`;
+const describe = (character) => (character === " " ? "space" : character);
 
-  [...text.body].forEach((character, index) => {
-    const span = document.createElement("span");
-    span.className = "heatmap-char";
-    span.textContent = character;
+// Accuracy across every recorded run of this text.
+export function buildAccuracyCells(text, stats) {
+  const values = stats.characters.map((_, index) => getCharacterAccuracy(index, stats)).filter((value) => value !== null);
+  const lowest = values.length ? Math.min(...values) : null;
+  const highest = values.length ? Math.max(...values) : null;
+
+  const cells = [...text.body].map((character, index) => {
     const accuracy = getCharacterAccuracy(index, stats);
-    if (accuracy === null) {
-      span.classList.add("untracked");
-      span.title = getCoverageTitle(index, stats);
-    } else {
-      span.style.backgroundColor = getHeatmapColor(accuracy, lowest, highest);
-      span.title = `${accuracy}% accuracy across ${stats.characters[index].attempts} attempts`;
-    }
-    elements.heatmapDisplay.append(span);
+    if (accuracy === null) return { char: character, color: null, title: `${describe(character)}: ${getCoverageTitle(index, stats)}` };
+    return {
+      char: character,
+      color: getHeatmapColor(accuracy, lowest, highest),
+      title: `${accuracy}% accuracy across ${stats.characters[index].attempts} attempts`,
+    };
   });
+
+  return { cells, lowest: lowest === null ? "—" : `${lowest}%`, highest: highest === null ? "—" : `${highest}%` };
 }
 
-export function renderSpeedHeatmap({ elements, document, text, stats }) {
-  elements.speedChart.replaceChildren();
+// Average letter speed across every recorded run of this text.
+export function buildAllSpeedCells(text, stats) {
   const speeds = stats.characters.map((_, index) => getAverageLetterWpm(index, stats));
   const recorded = speeds.filter((speed) => speed !== null);
   const lowest = recorded.length ? Math.min(...recorded) : null;
   const highest = recorded.length ? Math.max(...recorded) : null;
-  elements.speedLegendLowest.textContent = lowest === null ? "—" : `${lowest} WPM`;
-  elements.speedLegendHighest.textContent = highest === null ? "—" : `${highest} WPM`;
 
-  [...text.body].forEach((character, index) => {
-    const span = document.createElement("span");
-    span.className = "heatmap-char";
-    span.textContent = character;
+  const cells = [...text.body].map((character, index) => {
     const speed = speeds[index];
-    if (speed === null) {
-      span.classList.add("untracked");
-      span.title = `${character === " " ? "space" : character}: ${getCoverageTitle(index, stats)}`;
-    } else {
-      span.style.backgroundColor = getSpeedColor(speed, lowest, highest);
-      span.title = `${character === " " ? "space" : character}: ${speed} WPM average`;
-    }
-    elements.speedChart.append(span);
+    if (speed === null) return { char: character, color: null, title: `${describe(character)}: ${getCoverageTitle(index, stats)}` };
+    return {
+      char: character,
+      color: getSpeedColor(speed, lowest, highest),
+      title: `${describe(character)}: ${speed} WPM average`,
+    };
   });
+
+  return { cells, lowest: lowest === null ? "—" : `${lowest} WPM`, highest: highest === null ? "—" : `${highest} WPM` };
 }
 
-// Hovering a histogram bin dims every character outside that speed range.
-export function renderLastRunHeatmap({ elements, document, samples, bins, activeBinIndex = null }) {
-  elements.lastRunHeatmap.replaceChildren();
+// Letter speed for the run that just finished. Hovering a histogram bin dims
+// every character outside that speed range.
+export function buildRunSpeedCells(samples, bins, activeBinIndex = null) {
   const speeds = samples.map((sample) => sample.speed).filter((speed) => speed !== null);
   const low = Math.min(...speeds, 0);
   const high = Math.max(...speeds, 1);
   const activeBin = activeBinIndex === null ? null : bins[activeBinIndex];
 
-  samples.forEach((sample) => {
+  const cells = samples.map((sample) => {
+    if (sample.speed === null) return { char: sample.char, color: null, title: `${describe(sample.char)}: no speed data` };
+    if (activeBin && !isSpeedInBin(sample.speed, activeBin, bins)) {
+      return { char: sample.char, color: null, title: `${describe(sample.char)}: ${sample.speed} WPM` };
+    }
+    return {
+      char: sample.char,
+      color: getSpeedColor(sample.speed, low, high),
+      title: `${describe(sample.char)}: ${sample.speed} WPM`,
+    };
+  });
+
+  return {
+    cells,
+    lowest: speeds.length ? `${Math.min(...speeds)} WPM` : "—",
+    highest: speeds.length ? `${Math.max(...speeds)} WPM` : "—",
+  };
+}
+
+export function paintHeatmapCells(target, document, cells) {
+  target.replaceChildren();
+  cells.forEach((cell) => {
     const span = document.createElement("span");
     span.className = "heatmap-char";
-    span.textContent = sample.char;
-    if (sample.speed === null) {
-      span.classList.add("untracked");
-      span.title = `${sample.char === " " ? "space" : sample.char}: no speed data`;
-    } else if (activeBin && !isSpeedInBin(sample.speed, activeBin, bins)) {
-      span.classList.add("untracked");
-      span.title = `${sample.char}: ${sample.speed} WPM`;
-    } else {
-      span.style.backgroundColor = getSpeedColor(sample.speed, low, high);
-      span.title = `${sample.char}: ${sample.speed} WPM`;
-    }
-    elements.lastRunHeatmap.append(span);
+    span.textContent = cell.char;
+    if (cell.color === null) span.classList.add("untracked");
+    else span.style.backgroundColor = cell.color;
+    span.title = cell.title;
+    target.append(span);
   });
 }

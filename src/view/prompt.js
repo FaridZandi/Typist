@@ -1,6 +1,8 @@
 // The prompt is the typing surface. It renders the active word, the caret,
-// corrections, omissions, substitutions, and extra characters, and after a run
-// it doubles as the annotated passage.
+// corrections, omissions, substitutions, and extra characters.
+//
+// The same builder produces the result screen's annotated passage, so a word
+// looks identical whether you are typing it or reading it back afterwards.
 
 function appendCaret(parent, document) {
   const caret = document.createElement("span");
@@ -9,15 +11,16 @@ function appendCaret(parent, document) {
   parent.append(caret);
 }
 
-export function renderPrompt({ elements, document, words, run, annotations = [], activeAnnotationId = null }) {
+function buildPassage({ document, words, run, annotations, activeAnnotationId, showCaret }) {
   const { finished, currentWordIndex, currentWordBuffer, currentWordMistakeOffsets, committedWords } = run;
-  elements.textDisplay.replaceChildren();
+  const fragment = document.createDocumentFragment();
 
   words.forEach((word, wordIndex) => {
     const wordElement = document.createElement("span");
     wordElement.className = "prompt-word";
+    wordElement.dataset.wordIndex = String(wordIndex);
 
-    const wordAnnotations = finished ? annotations.filter((annotation) => annotation.wordIndex === wordIndex) : [];
+    const wordAnnotations = annotations.filter((annotation) => annotation.wordIndex === wordIndex);
     if (wordAnnotations.length) {
       wordElement.classList.add("run-annotation");
       wordElement.title = wordAnnotations.map((annotation) => annotation.message).join(" · ");
@@ -26,7 +29,7 @@ export function renderPrompt({ elements, document, words, run, annotations = [],
     if (wordIndex === currentWordIndex && !finished) wordElement.classList.add("active-word");
 
     const committed = committedWords[wordIndex];
-    const isActive = wordIndex === currentWordIndex && !committed && !finished;
+    const isActive = showCaret && wordIndex === currentWordIndex && !committed && !finished;
     const visibleBuffer = isActive ? [...currentWordBuffer] : committed?.typedCharacters || [];
     const mistakeOffsets = isActive ? currentWordMistakeOffsets : new Set(committed?.mistakeOffsets || []);
 
@@ -58,7 +61,7 @@ export function renderPrompt({ elements, document, words, run, annotations = [],
         if (isActive && extraIndex === visibleBuffer.length - word.text.length - 1) appendCaret(wordElement, document);
       });
     }
-    elements.textDisplay.append(wordElement);
+    fragment.append(wordElement);
 
     if (wordIndex < words.length - 1) {
       const separator = document.createElement("span");
@@ -66,10 +69,21 @@ export function renderPrompt({ elements, document, words, run, annotations = [],
       separator.textContent = " ";
       separator.setAttribute("aria-hidden", "true");
       if (committed && committed.separatorCommitted) separator.classList.add("correct");
-      elements.textDisplay.append(separator);
+      fragment.append(separator);
     }
   });
 
-  elements.resultPassage.hidden = !finished;
-  elements.resultTextDisplay.replaceChildren(...[...elements.textDisplay.childNodes].map((node) => node.cloneNode(true)));
+  return fragment;
+}
+
+export function renderPrompt({ elements, document, words, run }) {
+  elements.textDisplay.replaceChildren(
+    buildPassage({ document, words, run, annotations: [], activeAnnotationId: null, showCaret: true }),
+  );
+}
+
+export function renderAnnotatedPassage({ elements, document, words, run, annotations, activeAnnotationId }) {
+  elements.resultTextDisplay.replaceChildren(
+    buildPassage({ document, words, run, annotations, activeAnnotationId, showCaret: false }),
+  );
 }

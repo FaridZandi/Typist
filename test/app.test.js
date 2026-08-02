@@ -31,11 +31,10 @@ test("typing test records a completed text-id run and renders its results", asyn
   assert.equal(document.querySelector("#resultPanel").hidden, false);
   assert.equal(document.querySelector("#testView").hidden, true);
   assert.equal(document.querySelector("#resultsView").hidden, false);
-  assert.equal(document.querySelector("#heatmapRuns").textContent, "1");
+  assert.equal(document.querySelector("#heatmapRuns").textContent, "1 run");
   assert.equal(input.disabled, true);
   assert.match(document.querySelector("#finalSpeed").textContent, /^\d+$/);
-  assert.equal(document.querySelector("#accuracyLegendLowest").textContent, "100%");
-  assert.equal(document.querySelector("#accuracyLegendHighest").textContent, "100%");
+  assert.equal(document.querySelector("#resultPassage").hidden, false);
   const runs = JSON.parse(window.localStorage.getItem("typist-typing-runs-v2"));
   assert.equal(runs.runs[0].textId, "calm-precision");
 });
@@ -106,7 +105,7 @@ test("typing stores bounded event records and separates corrected process errors
     app.handleCharacter("a", 200);
     app.handleCharacter("b", 300);
 
-    assert.equal(document.querySelector("#finalAccuracyDetail").textContent, "100");
+    assert.equal(document.querySelector("#finalAccuracy").textContent, "100");
     assert.equal(document.querySelector("#processAccuracy").textContent, "67");
     assert.match(document.querySelector("#runObservation").textContent, /corrected error/);
     const analysis = JSON.parse(window.localStorage.getItem("typist-typing-analysis-v3"));
@@ -175,7 +174,7 @@ test("typing classifies an adjacent swapped pair as a transposition", async () =
     app.handleSpace(200);
     const analysis = JSON.parse(window.localStorage.getItem("typist-typing-analysis-v3"));
     assert.equal(analysis.texts.short.runs[0].summary.categories.transposition, 1);
-    assert.equal(document.querySelector("#finalAccuracyDetail").textContent, "0");
+    assert.equal(document.querySelector("#finalAccuracy").textContent, "0");
     assert.match(document.querySelector("#errorDetailSummary").textContent, /2 final-text errors/);
     assert.equal(document.querySelector("#errorCategoryList").textContent, "Transpositions1");
     const rhythm = chartInstances.find((chart) => chart.data.datasets[0].label === "Inter-key speed");
@@ -203,7 +202,6 @@ test("completed runs turn meaningful events into selectable passage notes", asyn
     assert.match(notes[0].getAttribute("aria-label"), /committed|pause/i);
     assert.equal(document.querySelector("#resultPassage").hidden, false);
     notes[0].click();
-    assert.equal(document.querySelectorAll(".run-annotation-active").length, 2);
     assert.equal(document.querySelectorAll("#resultTextDisplay .run-annotation-active").length, 1);
     assert.equal(document.querySelector("#runNoteDescription").hidden, false);
     assert.match(document.querySelector("#runNoteDescription").textContent, /committed|pause/i);
@@ -380,7 +378,7 @@ test("typing history can be cleared across aggregate and detailed stores", async
   window.confirm = () => true;
   document.querySelector("#clearHistoryButton").click();
 
-  assert.equal(document.querySelector("#heatmapRuns").textContent, "0");
+  assert.equal(document.querySelector("#heatmapRuns").textContent, "0 runs");
   assert.deepEqual(JSON.parse(window.localStorage.getItem("typist-typing-stats-v2")), { version: 2, texts: {} });
   assert.deepEqual(JSON.parse(window.localStorage.getItem("typist-typing-runs-v2")), { version: 2, runs: [] });
   assert.deepEqual(JSON.parse(window.localStorage.getItem("typist-typing-analysis-v3")), { version: 3, texts: {} });
@@ -395,7 +393,7 @@ test("cancelling the clear-history confirmation preserves the completed run", as
   window.confirm = () => false;
   document.querySelector("#clearHistoryButton").click();
 
-  assert.equal(document.querySelector("#heatmapRuns").textContent, "1");
+  assert.equal(document.querySelector("#heatmapRuns").textContent, "1 run");
 });
 
 test("typing commits omitted prompt characters as errors", async () => {
@@ -549,18 +547,59 @@ test("result progress detail compares only runs from the active text", async () 
   }
 });
 
-test("analytics tabs reveal one heatmap and one trend chart at a time", async () => {
+test("trend tabs reveal one chart at a time", async () => {
   const { document } = await createTypingPage();
 
-  assert.equal(document.querySelector("#accuracyPanel").hidden, false);
-  assert.equal(document.querySelector("#speedPanel").hidden, true);
-  document.querySelector("#speedTab").click();
-  assert.equal(document.querySelector("#accuracyPanel").hidden, true);
-  assert.equal(document.querySelector("#speedPanel").hidden, false);
-  assert.equal(document.querySelector("#speedTab").getAttribute("aria-selected"), "true");
-
   assert.equal(document.querySelector("#progressPanel").hidden, false);
+  assert.equal(document.querySelector("#tradeoffPanel").hidden, true);
   document.querySelector("#tradeoffTab").click();
   assert.equal(document.querySelector("#progressPanel").hidden, true);
   assert.equal(document.querySelector("#tradeoffPanel").hidden, false);
+  assert.equal(document.querySelector("#tradeoffTab").getAttribute("aria-selected"), "true");
+});
+
+test("the passage shows one lens at a time and each states its own scope", async () => {
+  const { window, document, app } = await createTypingPage({ catalog: shortText });
+
+  try {
+    app.handleCharacter("a", 0);
+    app.handleCharacter("b", 100);
+
+    // Notes lead: the chips are the index into the passage.
+    assert.equal(document.querySelector("#lensNotes").getAttribute("aria-pressed"), "true");
+    assert.equal(document.querySelector("#passageLegend").hidden, true);
+    assert.equal(document.querySelector("#allSpeedScope").textContent, "1 run");
+
+    document.querySelector("#lensAllAccuracy").click();
+    assert.equal(document.querySelector("#lensAllAccuracy").getAttribute("aria-pressed"), "true");
+    assert.equal(document.querySelector("#lensNotes").getAttribute("aria-pressed"), "false");
+    assert.equal(document.querySelector("#runNoteList").hidden, true);
+    assert.equal(document.querySelector("#passageLegend").hidden, false);
+    assert.match(document.querySelector("#passageLensHint").textContent, /across every recorded run/);
+    assert.equal(document.querySelectorAll("#resultTextDisplay .heatmap-char").length, 2);
+    assert.equal(document.querySelectorAll("#resultTextDisplay .prompt-word").length, 0);
+
+    document.querySelector("#lensNotes").click();
+    assert.equal(document.querySelector("#passageLegend").hidden, true);
+    assert.equal(document.querySelectorAll("#resultTextDisplay .prompt-word").length, 1);
+  } finally {
+    window.close();
+  }
+});
+
+test("only one passage is rendered on the result screen", async () => {
+  const { window, document } = await createTypingPage({ storage: calmPrecision });
+  const input = document.querySelector("#typingInput");
+
+  try {
+    input.value = promptText(document);
+    input.dispatchEvent(new window.Event("input", { bubbles: true }));
+
+    // The live prompt plus exactly one result passage — no duplicated copies.
+    assert.equal(document.querySelectorAll("#resultsView .text-display").length, 1);
+    assert.equal(document.querySelector("#heatmapDisplay"), null);
+    assert.equal(document.querySelector("#lastRunHeatmap"), null);
+  } finally {
+    window.close();
+  }
 });

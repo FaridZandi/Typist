@@ -12,8 +12,13 @@ import { deriveRunAnnotations } from "./annotations.js";
 import { choosePrimaryFeedback, formatBundleEvidence, getCoaching, getFeedbackBundles } from "./feedback.js";
 import { getProgressState } from "./progress.js";
 import { createCharts } from "./charts.js";
-import { renderPrompt } from "./view/prompt.js";
-import { renderAccuracyHeatmap, renderLastRunHeatmap, renderSpeedHeatmap } from "./view/heatmaps.js";
+import { renderAnnotatedPassage, renderPrompt } from "./view/prompt.js";
+import {
+  buildAccuracyCells,
+  buildAllSpeedCells,
+  buildRunSpeedCells,
+  paintHeatmapCells,
+} from "./view/heatmaps.js";
 import {
   renderErrorDetails,
   renderProgressDetail,
@@ -28,19 +33,19 @@ const elementIds = [
   "textDisplay", "typingInput", "testView", "resultsView", "restartButton", "clearHistoryButton",
   "textSelect", "currentTextLabel", "currentTextMeta",
   "speedValue", "accuracyValue", "consistencyValue", "scoreValue",
-  "resultPanel", "resultTitle", "lastRunHeatmapTitle",
-  "finalSpeed", "finalAccuracy", "finalScore", "grossSpeed", "effectiveSpeed",
-  "finalAccuracyDetail", "processAccuracy", "correctionSummary", "completionTime", "pauseSummary", "finalConsistency",
+  "resultPanel", "resultTitle",
+  "finalSpeed", "finalAccuracy", "finalScore", "grossSpeed",
+  "processAccuracy", "correctionSummary", "remainingErrors", "completionTime", "pauseSummary", "finalConsistency",
   "runObservation", "runEvidence", "runRecommendation",
   "secondaryFeedback", "secondaryFeedbackCount", "secondaryFeedbackList",
-  "runNotes", "runNoteList", "runNoteDescription", "resultPassage", "resultTextDisplay",
+  "runNoteList", "runNoteDescription", "resultPassage", "resultTextDisplay",
+  "passageLensHint", "passageLegend", "passageLegendLowest", "passageLegendHighest",
+  "allSpeedScope", "allAccuracyScope",
   "rhythmDetailSummary", "rhythmDetailIntro", "errorDetailSummary", "errorDetailIntro", "errorCategoryList",
   "transitionDetailSummary", "transitionDetailIntro", "transitionList",
   "wordDetailSummary", "wordDetailIntro", "wordList",
   "progressDetailSummary", "progressDetailIntro",
-  "lastRunHeatmap", "heatmapDisplay", "heatmapRuns",
-  "accuracyLegendHighest", "accuracyLegendLowest", "speedChart", "speedLegendHighest", "speedLegendLowest",
-  "timerProgressFill",
+  "heatmapRuns", "timerProgressFill",
 ];
 
 const canvasIds = ["rhythmChart", "lastRunHistogram", "progressChart", "tradeoffChart"];
@@ -58,6 +63,7 @@ export function initTypingApp({
   const resultAnalysisPanels = [...document.querySelectorAll("[data-result-panel]")];
   const chartScopeInputs = [...document.querySelectorAll('input[name="chartScope"]')];
   const viewTabLists = [...document.querySelectorAll("[data-view-tabs]")];
+  const lensButtons = [...document.querySelectorAll("[data-lens]")];
 
   const textById = createTextIndex(catalog);
   const storage = createStorage(textById, window.localStorage);
@@ -71,6 +77,8 @@ export function initTypingApp({
   let activeRunAnnotationId = null;
   let lastRunSpeeds = [];
   let lastRunHistogramBins = [];
+  let passageLens = "notes";
+  let activeHistogramBin = null;
   let focusRestartOnNextTab = false;
   let presentationUpdateScheduled = false;
 
@@ -80,10 +88,16 @@ export function initTypingApp({
     ? storage.runsStore.runs
     : storage.runsStore.runs.filter((record) => record.textId === activeText.id);
 
+  // Hovering the histogram narrows the passage to that speed band, which only
+  // makes sense against this run's speeds — so it selects that lens too.
   const charts = createCharts({
     elements,
     getRunLabel,
-    onHistogramHover: (binIndex) => paintLastRunHeatmap(binIndex),
+    onHistogramHover: (binIndex) => {
+      if (!run.finished) return;
+      activeHistogramBin = binIndex;
+      setPassageLens(binIndex === null ? passageLens : "run-speed");
+    },
     getChart: () => window.Chart,
   });
 
@@ -102,17 +116,63 @@ export function initTypingApp({
   }
 
   function paintPrompt() {
-    renderPrompt({ elements, document, words, run, annotations: runAnnotations, activeAnnotationId: activeRunAnnotationId });
+    renderPrompt({ elements, document, words, run });
   }
 
-  function paintLastRunHeatmap(activeBinIndex = null) {
-    renderLastRunHeatmap({ elements, document, samples: lastRunSpeeds, bins: lastRunHistogramBins, activeBinIndex });
-  }
+  const lensHints = {
+    notes: "Select a note to find it in the passage.",
+    "run-speed": "Letter speed recorded during this run.",
+    "all-speed": "Average letter speed across every recorded run of this piece.",
+    "all-accuracy": "Letter accuracy across every recorded run of this piece.",
+  };
 
-  function paintTextHeatmaps() {
+  // One passage, four things it can encode. Each lens states its own scope so
+  // this-run and all-runs evidence are never mistaken for each other.
+  function paintPassage() {
+    lensButtons.forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.lens === passageLens)));
+    elements.passageLensHint.textContent = lensHints[passageLens];
+    elements.runNoteList.hidden = passageLens !== "notes" || runAnnotations.length === 0;
+    elements.runNoteDescription.hidden = passageLens !== "notes" || !activeRunAnnotationId;
+    elements.resultTextDisplay.classList.toggle("heatmap-passage", passageLens !== "notes");
+
+    if (passageLens === "notes") {
+      elements.passageLegend.hidden = true;
+      renderAnnotatedPassage({ elements, document, words, run, annotations: runAnnotations, activeAnnotationId: activeRunAnnotationId });
+      return;
+    }
+
     const stats = storage.getTextStats(activeText);
-    renderAccuracyHeatmap({ elements, document, text: activeText, stats });
-    renderSpeedHeatmap({ elements, document, text: activeText, stats });
+    const built = passageLens === "run-speed"
+      ? buildRunSpeedCells(lastRunSpeeds, lastRunHistogramBins, activeHistogramBin)
+      : passageLens === "all-speed"
+        ? buildAllSpeedCells(activeText, stats)
+        : buildAccuracyCells(activeText, stats);
+
+    paintHeatmapCells(elements.resultTextDisplay, document, built.cells);
+    elements.passageLegend.hidden = false;
+    elements.passageLegendLowest.textContent = built.lowest;
+    elements.passageLegendHighest.textContent = built.highest;
+  }
+
+  function setPassageLens(lens) {
+    passageLens = lens;
+    if (lens !== "run-speed") activeHistogramBin = null;
+    paintPassage();
+  }
+
+  // Hovering a note previews its word without committing the selection.
+  function previewAnnotation(wordIndex) {
+    elements.resultTextDisplay.querySelectorAll("[data-word-index]").forEach((element) => {
+      element.classList.toggle("run-annotation-preview", Number(element.dataset.wordIndex) === wordIndex);
+    });
+  }
+
+  function updateRunCount() {
+    const { runs } = storage.getTextStats(activeText);
+    elements.heatmapRuns.textContent = `${runs} run${runs === 1 ? "" : "s"}`;
+    const scope = runs === 1 ? "1 run" : `all ${runs} runs`;
+    elements.allSpeedScope.textContent = scope;
+    elements.allAccuracyScope.textContent = scope;
   }
 
   function paintTrendCharts() {
@@ -160,7 +220,6 @@ export function initTypingApp({
   function updateTextSummary() {
     elements.currentTextLabel.textContent = activeText.title;
     elements.currentTextMeta.textContent = `${words.length} words · ${activeText.durationSeconds}s`;
-    elements.lastRunHeatmapTitle.textContent = `${activeText.title} · last run character speed`;
   }
 
   function populateTextPicker() {
@@ -217,7 +276,6 @@ export function initTypingApp({
       speed: smoothedIntervals.has(index) ? Math.round(12000 / smoothedIntervals.get(index)) : null,
     }));
     lastRunHistogramBins = getSpeedHistogramBins(lastRunSpeeds);
-    paintLastRunHeatmap();
     charts.renderHistogram(lastRunHistogramBins);
   }
 
@@ -246,10 +304,9 @@ export function initTypingApp({
     elements.finalAccuracy.textContent = summary.finalAccuracy;
     if (elements.finalScore) elements.finalScore.textContent = typingScore;
     elements.grossSpeed.textContent = summary.grossWordsPerMinute;
-    elements.effectiveSpeed.textContent = summary.effectiveWordsPerMinute;
-    elements.finalAccuracyDetail.textContent = summary.finalAccuracy;
     elements.processAccuracy.textContent = summary.processAccuracy;
-    elements.correctionSummary.textContent = `${summary.correctedErrors} corrected · ${summary.remainingErrors} left`;
+    elements.correctionSummary.textContent = summary.correctedErrors;
+    elements.remainingErrors.textContent = summary.remainingErrors;
     elements.completionTime.textContent = formatDuration(summary.completionMs);
     elements.pauseSummary.textContent = summary.pauseCount
       ? `${summary.pauseCount} · ${formatDuration(summary.pauseDurationMs)}`
@@ -269,9 +326,12 @@ export function initTypingApp({
     elements.resultsView.hidden = false;
 
     paintPrompt();
-    paintRunNotes();
-    renderSessionDetails(summary);
+    elements.resultPassage.hidden = false;
+    // The passage needs this run's speeds before any lens can paint it.
     renderLastRunResults(getSmoothedRunIntervals(run.intervals));
+    paintRunNotes();
+    setPassageLens("notes");
+    renderSessionDetails(summary);
     commitRun(metrics, consistency, typingScore, getSmoothedRunIntervals(run.intervals), summary, coaching);
     updateStats();
     afterLayout(() => {
@@ -289,9 +349,10 @@ export function initTypingApp({
       onSelect: (id) => {
         activeRunAnnotationId = activeRunAnnotationId === id ? null : id;
         paintRunNotes();
-        paintPrompt();
+        setPassageLens("notes");
         if (activeRunAnnotationId) elements.runNoteDescription.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
       },
+      onPreview: previewAnnotation,
     });
   }
 
@@ -339,7 +400,7 @@ export function initTypingApp({
     storage.analysisStore.texts[activeText.id] = analysisText;
 
     storage.saveStores();
-    paintTextHeatmaps();
+    updateRunCount();
     paintTrendCharts();
   }
 
@@ -356,6 +417,8 @@ export function initTypingApp({
     activeRunAnnotationId = null;
     lastRunSpeeds = [];
     lastRunHistogramBins = [];
+    passageLens = "notes";
+    activeHistogramBin = null;
 
     elements.typingInput.value = "";
     elements.typingInput.disabled = false;
@@ -367,9 +430,11 @@ export function initTypingApp({
     elements.testView.hidden = false;
     elements.resultsView.hidden = true;
     elements.resultPanel.hidden = true;
-    elements.lastRunHeatmap.replaceChildren();
+    elements.resultPassage.hidden = true;
+    elements.resultTextDisplay.replaceChildren();
+    elements.passageLegend.hidden = true;
+    lensButtons.forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.lens === "notes")));
     setResultAnalysisTab("rhythm");
-    elements.runNotes.hidden = true;
     elements.runNoteList.replaceChildren();
     elements.runNoteDescription.hidden = true;
     elements.runNoteDescription.textContent = "";
@@ -385,7 +450,7 @@ export function initTypingApp({
     updateTextSummary();
     updateTimerProgress();
     paintPrompt();
-    paintTextHeatmaps();
+    updateRunCount();
     elements.typingInput.focus();
   }
 
@@ -457,15 +522,19 @@ export function initTypingApp({
   });
 
   resultAnalysisTabs.forEach((tab) => tab.addEventListener("click", () => setResultAnalysisTab(tab.dataset.resultTab)));
+  lensButtons.forEach((button) => button.addEventListener("click", () => setPassageLens(button.dataset.lens)));
 
   elements.clearHistoryButton.addEventListener("click", () => {
     if (!window.confirm("Clear all typing history and character statistics? This cannot be undone.")) return;
     storage.clearAll();
-    paintTextHeatmaps();
+    updateRunCount();
     paintTrendCharts();
   });
 
-  elements.lastRunHistogramCanvas.addEventListener("mouseleave", () => paintLastRunHeatmap());
+  elements.lastRunHistogramCanvas.addEventListener("mouseleave", () => {
+    activeHistogramBin = null;
+    if (run.finished) paintPassage();
+  });
 
   storage.removeLegacyStorage();
   populateTextPicker();
@@ -481,6 +550,7 @@ export function initTypingApp({
     handleBackspace: (timestamp = now(), modifiers = {}) => applyKeyResult(run.handleBackspace(timestamp, modifiers)),
     handleSpace: (timestamp = now(), modifiers = {}) => applyKeyResult(run.handleSpace(timestamp, modifiers)),
     setResultAnalysisTab,
+    setPassageLens,
     finishRun,
     resetRun,
     getActiveText: () => activeText,

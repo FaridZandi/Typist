@@ -56,11 +56,13 @@ export function createCharts({ elements, getRunLabel, onHistogramHover, getChart
     renderProgress(runs, chartScope) {
       if (!getChart() || !elements.progressChartCanvas) return;
       const point = (run, index, value) => ({ x: index + 1, y: value, completedAt: run.completedAt, textTitle: getRunLabel(run) });
+      // Speed leads because it is what the run is judged on; the rest stay
+      // available in the legend without crowding the plot by default.
       const datasets = [
-        { label: "Speed (WPM)", data: runs.map((run, index) => point(run, index, run.wordsPerMinute)), borderColor: "#0f766e", tension: 0.25, parsing: false, hidden: true, yAxisID: "wpm" },
+        { label: "Speed (WPM)", data: runs.map((run, index) => point(run, index, run.wordsPerMinute)), borderColor: "#0f766e", tension: 0.25, parsing: false, yAxisID: "wpm" },
         { label: "Accuracy (%)", data: runs.map((run, index) => point(run, index, run.accuracy)), borderColor: "#15803d", tension: 0.25, parsing: false, hidden: true, yAxisID: "percent" },
         { label: "Consistency (%)", data: runs.map((run, index) => point(run, index, run.consistency)), borderColor: "#c62828", tension: 0.25, parsing: false, hidden: true, yAxisID: "percent" },
-        { label: "Typing score", data: runs.map((run, index) => point(run, index, run.typingScore)), borderColor: "#7c3aed", tension: 0.25, parsing: false, yAxisID: "score" },
+        { label: "Typing score", data: runs.map((run, index) => point(run, index, run.typingScore)), borderColor: "#7c3aed", tension: 0.25, parsing: false, hidden: true, yAxisID: "score" },
       ];
       // Normalized speed only makes sense once several texts are in view, and it
       // stays explicitly labelled as approximate.
@@ -77,11 +79,20 @@ export function createCharts({ elements, getRunLabel, onHistogramHover, getChart
         plugins: { legend: { position: "bottom" }, tooltip: { callbacks: {
           afterTitle(items) { const run = runs[items[0]?.dataIndex]; return run ? `${formatChartTimestamp(run.completedAt)} · ${getRunLabel(run)}` : ""; },
         } } },
+        // Runs are whole numbers, so the axis is pinned to them — otherwise a
+        // single run renders an axis running 0.9 to 1.1. Each y-axis only
+        // appears when a dataset using it is visible.
         scales: {
-          x: { type: "linear", title: { display: true, text: "Date and time" }, ticks: { stepSize: 1, callback(value) { const run = runs[value - 1]; return run ? formatChartTimestamp(run.completedAt) : value; } } },
-          wpm: { type: "linear", position: "left", beginAtZero: true, title: { display: true, text: "WPM" } },
-          percent: { type: "linear", position: "left", beginAtZero: true, max: 100, grid: { drawOnChartArea: false }, title: { display: true, text: "Percent" } },
-          score: { type: "linear", position: "right", beginAtZero: true, grid: { drawOnChartArea: false }, title: { display: true, text: "Score" } },
+          x: {
+            type: "linear",
+            min: 0.5,
+            max: Math.max(runs.length, 1) + 0.5,
+            title: { display: true, text: "Date and time" },
+            ticks: { stepSize: 1, precision: 0, callback(value) { const run = runs[value - 1]; return run ? formatChartTimestamp(run.completedAt) : ""; } },
+          },
+          wpm: { type: "linear", display: "auto", position: "left", beginAtZero: true, title: { display: true, text: "WPM" } },
+          percent: { type: "linear", display: "auto", position: "left", beginAtZero: true, max: 100, grid: { drawOnChartArea: false }, title: { display: true, text: "Percent" } },
+          score: { type: "linear", display: "auto", position: "right", beginAtZero: true, grid: { drawOnChartArea: false }, title: { display: true, text: "Score" } },
         },
       };
       progressChart = upsert(progressChart, elements.progressChartCanvas, { type: "line", data: { datasets }, options });

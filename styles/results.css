@@ -10,8 +10,15 @@
 
 .result-panel h2 {
   margin-bottom: 6px;
-  font-size: 1.25rem;
+  font-size: 1.45rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
 }
+
+/* Focus moves here after a run so screen readers land on the result. The
+   heading is tabindex="-1", so Tab can never reach it and a focus ring would
+   mark a position the keyboard cannot occupy. */
+.result-panel h2[tabindex="-1"]:focus { outline: none; }
 
 .result-panel h3 {
   margin: 0 0 10px;
@@ -22,34 +29,60 @@
   color: var(--muted);
 }
 
-.result-summary {
-  margin-top: 4px;
+.headline-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 30px;
+  margin-top: 12px;
 }
 
+.headline-metrics p { margin: 0; }
+
+.headline-metrics strong {
+  display: block;
+  color: var(--ink);
+  font-size: clamp(1.7rem, 4vw, 2.15rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.headline-metrics small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* Six reference numbers, deliberately quieter than the two above them.
+   Stacked rather than spread, so a long value never drags its label away. */
 .session-metrics {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
-  gap: 8px;
-  margin: 16px 0 0;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  gap: 12px 20px;
+  margin: 14px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid rgba(15, 118, 110, 0.18);
 }
 
-.session-metrics div {
-  padding: 10px;
-  border: 1px solid rgba(15, 118, 110, 0.16);
-  border-radius: 7px;
-  background: rgba(255, 255, 255, 0.65);
-}
+.session-metrics div { min-width: 0; }
 
 .session-metrics dt {
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: 0.74rem;
   font-weight: 700;
 }
 
 .session-metrics dd {
-  margin: 3px 0 0;
+  margin: 2px 0 0;
   color: var(--ink);
+  font-size: 0.95rem;
   font-weight: 750;
+  font-variant-numeric: tabular-nums;
 }
 
 .coaching-card {
@@ -82,9 +115,8 @@
 .secondary-feedback-item p { margin-top: 4px; color: var(--muted); font-size: .82rem; }
 .secondary-feedback-item .recommendation { color: var(--ink); font-weight: 650; }
 
-.run-notes { margin-top: 14px; }
-.run-notes h3 { margin: 0 0 8px; font-size: .9rem; }
-.run-note-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.run-note-list { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.run-note-list[hidden] { display: none; }
 .run-note-description { margin: 9px 0 0; padding: 8px 10px; border-left: 2px solid var(--accent); background: rgba(15, 118, 110, .06); color: var(--ink); font-size: .84rem; }
 .run-note {
   min-height: 30px;
@@ -99,18 +131,88 @@
 }
 .run-note:hover, .run-note:focus-visible, .run-note[aria-pressed="true"] { border-color: var(--accent); background: rgba(15, 118, 110, .1); }
 .prompt-word.run-annotation { box-shadow: inset 0 -2px 0 rgba(180, 83, 9, .45); }
-.prompt-word.run-annotation-active { background: rgba(234, 179, 8, .17); border-radius: 3px; }
+.prompt-word.run-annotation-active,
+.prompt-word.run-annotation-preview { background: rgba(234, 179, 8, .17); border-radius: 3px; }
+.prompt-word.run-annotation-active { box-shadow: inset 0 -2px 0 var(--bad); }
 
-.result-passage { margin-top: 14px; }
-.result-passage-heading { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+.result-passage { margin-top: 18px; }
+.result-passage-heading {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 10px;
+}
 .result-passage-heading h3, .result-passage-heading p { margin: 0; }
-.result-passage-heading h3 { font-size: .95rem; }
+.result-passage-heading h3 { font-size: 1.02rem; font-weight: 780; }
 .result-passage-heading p { color: var(--muted); font-size: .8rem; }
-.result-text-display { min-height: 0; cursor: default; font-size: .95rem; line-height: 1.8; }
+.result-text-display { min-height: 0; cursor: default; font-size: .95rem; line-height: 1.9; }
+.result-text-display.heatmap-passage { line-height: 2.05; }
 
-.result-details { display: grid; gap: 10px; margin-top: 14px; }
+/* One control for what the passage encodes. Each option carries its scope,
+   so this-run and all-runs evidence stay distinguishable. */
+.segmented {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .7);
+}
+.segment {
+  min-height: 0;
+  padding: 5px 11px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font-size: .8rem;
+  font-weight: 750;
+  line-height: 1.2;
+  text-align: left;
+  cursor: pointer;
+}
+.segment small {
+  display: block;
+  font-size: .64rem;
+  font-weight: 600;
+  letter-spacing: .03em;
+  opacity: .85;
+}
+.segment:hover { color: var(--ink); }
+.segment[aria-pressed="true"] {
+  background: #fff;
+  color: var(--ink);
+  box-shadow: 0 1px 3px rgba(26, 38, 52, .18);
+}
+
+.heatmap-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: .74rem;
+}
+.heatmap-legend-row[hidden] { display: none; }
+.heatmap-legend-row .heatmap-legend-bar {
+  flex: none;
+  width: 132px;
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, hsl(0 68% 72%), hsl(60 68% 72%), hsl(120 68% 72%));
+}
+
+.histogram-section { margin-top: 18px; }
+.histogram-section h3 { margin: 0; font-size: 1.02rem; font-weight: 780; }
+.histogram-section .section-note { margin-top: 2px; font-size: .8rem; }
+.histogram-section .histogram-wrap { margin-top: 10px; }
+
+.result-details { display: grid; gap: 10px; margin-top: 18px; }
 .result-details-heading h3, .result-details-heading p { margin: 0; }
-.result-details-heading h3 { font-size: .95rem; }
+.result-details-heading h3 { font-size: 1.02rem; font-weight: 780; }
 .result-details-heading p { margin-top: 3px; color: var(--muted); font-size: .8rem; }
 .result-analysis-tabs { justify-content: flex-start; }
 .result-analysis-panel {

@@ -56,16 +56,18 @@
         <div id="resultPanel" class="result-panel" hidden>
           <p class="eyebrow">Reflection</p>
           <h2 id="resultTitle" tabindex="-1">Run complete</h2>
-          <p class="result-summary"><span id="finalSpeed">0</span> effective WPM · <span id="finalAccuracy">100</span>% final accuracy</p>
+          <div class="headline-metrics" aria-label="Headline results">
+            <p><strong><span id="finalSpeed">0</span></strong><small>Effective WPM</small></p>
+            <p><strong><span id="finalAccuracy">100</span>%</strong><small>Final accuracy</small></p>
+          </div>
           <dl class="session-metrics" aria-label="Session results">
             <div><dt>Gross speed</dt><dd><span id="grossSpeed">0</span> WPM</dd></div>
-            <div><dt>Effective speed</dt><dd><span id="effectiveSpeed">0</span> WPM</dd></div>
-            <div><dt>Final accuracy</dt><dd><span id="finalAccuracyDetail">100</span>%</dd></div>
             <div><dt>Process accuracy</dt><dd><span id="processAccuracy">100</span>%</dd></div>
-            <div><dt>Corrections</dt><dd id="correctionSummary">0 corrected · 0 left</dd></div>
-            <div><dt>Completion</dt><dd id="completionTime">0s</dd></div>
-            <div><dt>Pauses</dt><dd id="pauseSummary">0</dd></div>
             <div><dt>Consistency</dt><dd><span id="finalConsistency">100</span>%</dd></div>
+            <div><dt>Completion</dt><dd id="completionTime">0s</dd></div>
+            <div><dt>Corrected</dt><dd id="correctionSummary">0</dd></div>
+            <div><dt>Errors left</dt><dd id="remainingErrors">0</dd></div>
+            <div><dt>Pauses</dt><dd id="pauseSummary">0</dd></div>
           </dl>
           <section class="coaching-card" aria-labelledby="observationTitle">
             <p class="eyebrow">One thing to take forward</p>
@@ -78,27 +80,33 @@
             <summary>Other patterns <span id="secondaryFeedbackCount"></span></summary>
             <div id="secondaryFeedbackList" class="secondary-feedback-list"></div>
           </details>
-          <section id="runNotes" class="run-notes" aria-labelledby="runNotesTitle" hidden>
-            <h3 id="runNotesTitle">Run notes</h3>
-            <div id="runNoteList" class="run-note-list" aria-label="Passage annotations"></div>
-            <p id="runNoteDescription" class="run-note-description" aria-live="polite" hidden></p>
-          </section>
           <section id="resultPassage" class="result-passage" aria-labelledby="resultPassageTitle" hidden>
             <div class="result-passage-heading">
-              <div><h3 id="resultPassageTitle">Notes in this passage</h3><p>Select a note to find it in context.</p></div>
+              <div>
+                <h3 id="resultPassageTitle">This run in context</h3>
+                <p id="passageLensHint" class="section-note">Select a note to find it in the passage.</p>
+              </div>
+              <div class="segmented" role="group" aria-label="Passage view">
+                <button id="lensNotes" class="segment" type="button" data-lens="notes" aria-pressed="true">Notes<small>this run</small></button>
+                <button id="lensRunSpeed" class="segment" type="button" data-lens="run-speed" aria-pressed="false">Speed<small>this run</small></button>
+                <button id="lensAllSpeed" class="segment" type="button" data-lens="all-speed" aria-pressed="false">Speed<small><span id="allSpeedScope">all runs</span></small></button>
+                <button id="lensAllAccuracy" class="segment" type="button" data-lens="all-accuracy" aria-pressed="false">Accuracy<small><span id="allAccuracyScope">all runs</span></small></button>
+              </div>
             </div>
+            <div id="runNoteList" class="run-note-list" aria-label="Passage annotations"></div>
             <div id="resultTextDisplay" class="text-display result-text-display" aria-label="Annotated passage from this run"></div>
+            <p id="runNoteDescription" class="run-note-description" aria-live="polite" hidden></p>
+            <div id="passageLegend" class="heatmap-legend-row" hidden>
+              <span id="passageLegendLowest">—</span>
+              <div class="heatmap-legend-bar"></div>
+              <span id="passageLegendHighest">—</span>
+            </div>
           </section>
-          <div class="run-detail-grid">
-            <section aria-labelledby="lastRunHeatmapTitle">
-              <h3 id="lastRunHeatmapTitle">Last run · character speed</h3>
-              <div id="lastRunHeatmap" class="heatmap-display run-heatmap-display" aria-label="Last run per character speed heatmap"></div>
-            </section>
-            <section aria-labelledby="lastRunHistogramTitle">
-              <h3 id="lastRunHistogramTitle">Letter speed distribution</h3>
-              <div class="histogram-wrap"><canvas id="lastRunHistogram" aria-label="Last run letter speed histogram" role="img"></canvas></div>
-            </section>
-          </div>
+          <section class="histogram-section" aria-labelledby="lastRunHistogramTitle">
+            <h3 id="lastRunHistogramTitle">Letter speed distribution</h3>
+            <p class="section-note">Hover a bar to keep only those letters lit in the passage above.</p>
+            <div class="histogram-wrap"><canvas id="lastRunHistogram" aria-label="Last run letter speed histogram" role="img"></canvas></div>
+          </section>
           <section class="result-details" aria-labelledby="analysisTitle">
             <div class="result-details-heading"><h3 id="analysisTitle">Explore this run</h3><p>Open one view when you want more detail.</p></div>
             <div class="view-tabs result-analysis-tabs" role="tablist" aria-label="Run analysis view">
@@ -135,39 +143,9 @@
           </section>
         </div>
 
-        <section class="analytics-section" aria-labelledby="heatmapsTitle">
-          <div class="analytics-header">
-            <div class="analytics-heading"><h2 id="heatmapsTitle">Text insights</h2><p class="analytics-meta"><span id="heatmapRuns">0</span> runs</p></div>
-            <div class="view-tabs" role="tablist" aria-label="Text heatmap view" data-view-tabs="heatmaps">
-              <button id="accuracyTab" class="view-tab" type="button" role="tab" aria-selected="true" aria-controls="accuracyPanel" data-view-target="accuracy">Accuracy</button>
-              <button id="speedTab" class="view-tab" type="button" role="tab" aria-selected="false" aria-controls="speedPanel" data-view-target="speed">Letter speed</button>
-            </div>
-          </div>
-          <div id="accuracyPanel" class="view-panel" role="tabpanel" aria-labelledby="accuracyTab" data-view-panel="heatmaps" data-view-id="accuracy">
-            <div class="heatmap-with-legend">
-              <div id="heatmapDisplay" class="heatmap-display" aria-label="Per character accuracy heatmap"></div>
-              <div class="heatmap-legend" aria-label="Character accuracy scale">
-                <span id="accuracyLegendHighest">—</span>
-                <div class="heatmap-legend-bar"></div>
-                <span id="accuracyLegendLowest">—</span>
-              </div>
-            </div>
-          </div>
-          <div id="speedPanel" class="view-panel" role="tabpanel" aria-labelledby="speedTab" data-view-panel="heatmaps" data-view-id="speed" hidden>
-            <div class="heatmap-with-legend">
-              <div id="speedChart" class="heatmap-display" aria-label="Per character average typing speed heatmap"></div>
-              <div class="heatmap-legend" aria-label="Letter speed scale">
-                <span id="speedLegendHighest">—</span>
-                <div class="heatmap-legend-bar"></div>
-                <span id="speedLegendLowest">—</span>
-              </div>
-            </div>
-          </div>
-        </section>
-
         <section class="analytics-section" aria-labelledby="trendsTitle">
           <div class="analytics-header">
-            <div class="analytics-heading"><h2 id="trendsTitle">Trends</h2></div>
+            <div class="analytics-heading"><h2 id="trendsTitle">Trends</h2><p class="analytics-meta"><span id="heatmapRuns">0 runs</span> on this piece</p></div>
             <div class="analytics-controls">
               <div class="view-tabs" role="tablist" aria-label="Performance trend view" data-view-tabs="trends">
                 <button id="progressTab" class="view-tab" type="button" role="tab" aria-selected="true" aria-controls="progressPanel" data-view-target="progress">Run progress</button>

@@ -55,16 +55,27 @@ The main typing test shows a prompt and tracks:
 - accuracy
 - consistency
 - typing score
-- per-character accuracy heatmap
-- per-character speed heatmap
+- per-character accuracy and speed
 - run progress over time
 - speed/consistency tradeoff
 - session feedback: gross/effective WPM, final/process accuracy, corrections, pauses, and consistency
 - expandable rhythm, error, transition, and word-review details
 
+### The result screen
+
+Effective WPM and final accuracy lead; the other six numbers stay deliberately
+quieter beneath them.
+
+The passage is rendered **once** and a single control changes what it encodes:
+run notes, letter speed for this run, letter speed across all runs, or accuracy
+across all runs. Each option states its own scope, so this-run and all-runs
+evidence are never mistaken for each other. Run notes act as the index into it —
+hovering one lights the word it refers to, selecting one pins it. Hovering a bar
+in the letter-speed histogram keeps only letters in that speed band lit.
+
 The prompt is the typing surface. A small focused input captures keyboard and IME events while the prompt renders the active word, caret, corrections, omissions, substitutions, and extra characters. Backspace edits only the active word; space commits it and aligns to the next prompt word. At timeout, the unfinished word is committed as-is.
 
-Consistency measures the variation between consecutive captured key presses, including mistakes, extra characters, backspaces, and spaces. Per-character speed heatmaps remain based on matched prompt characters.
+Consistency measures the variation between consecutive captured key presses, including mistakes, extra characters, backspaces, and spaces. Per-character speed remains based on matched prompt characters.
 
 Typing history is stored locally in versioned `localStorage` records. Character statistics are keyed by text ID, while completed runs retain their resolved text ID even when the Random selector was used. A bounded v3 analysis record retains detailed event data for the most recent 12 runs of each text; clearing typing history clears both the aggregate and detailed records. The progress and tradeoff charts can show either the active text or all texts.
 
@@ -120,7 +131,7 @@ the view layer knows the DOM exists. The typing test lives in `src/`:
 - `feedback.js`: ranked observations and the primary recommendation
 - `annotations.js`: derived passage annotations
 - `charts.js`: Chart.js wrappers
-- `view/`: prompt, heatmap, and result-screen rendering
+- `view/`: prompt, passage-heatmap, and result-screen rendering
 
 The reaction test mirrors it in `src/reaction/`:
 

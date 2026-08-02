@@ -21,9 +21,10 @@ function appendDetailItem(list, document, labelText, valueText) {
   list.append(item);
 }
 
-export function renderRunNotes({ elements, document, annotations, activeAnnotationId, onSelect }) {
+// Notes are the index to the passage: hovering one previews the word it refers
+// to, selecting one pins it. Both point at the same passage rendered once.
+export function renderRunNotes({ elements, document, annotations, activeAnnotationId, onSelect, onPreview }) {
   elements.runNoteList.replaceChildren();
-  elements.runNotes.hidden = annotations.length === 0;
   const active = annotations.find((annotation) => annotation.id === activeAnnotationId);
   elements.runNoteDescription.hidden = !active;
   elements.runNoteDescription.textContent = active ? active.message : "";
@@ -38,6 +39,12 @@ export function renderRunNotes({ elements, document, annotations, activeAnnotati
     button.setAttribute("aria-controls", "runNoteDescription");
     button.setAttribute("aria-pressed", String(annotation.id === activeAnnotationId));
     button.addEventListener("click", () => onSelect(annotation.id));
+    const preview = () => onPreview?.(annotation.wordIndex);
+    const clear = () => onPreview?.(null);
+    button.addEventListener("mouseenter", preview);
+    button.addEventListener("focus", preview);
+    button.addEventListener("mouseleave", clear);
+    button.addEventListener("blur", clear);
     elements.runNoteList.append(button);
   });
 }
