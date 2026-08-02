@@ -34,7 +34,7 @@
           </label>
         </section>
 
-        <div class="stats-grid" aria-live="polite">
+        <div id="liveMetrics" class="stats-grid" aria-live="polite" hidden>
           <div class="stat"><span>Speed</span><strong><span id="speedValue">0</span> WPM</strong></div>
           <div class="stat"><span>Accuracy</span><strong><span id="accuracyValue">100</span>%</strong></div>
           <div class="stat"><span>Consistency</span><strong><span id="consistencyValue">100</span>%</strong></div>
@@ -56,7 +56,39 @@
         <div id="resultPanel" class="result-panel" hidden>
           <p class="eyebrow">Reflection</p>
           <h2 id="resultTitle" tabindex="-1">Run complete</h2>
-          <p><span id="finalSpeed">0</span> WPM with <span id="finalAccuracy">100</span>% accuracy and a <span id="finalScore">100</span> typing score.</p>
+          <p class="result-summary"><span id="finalSpeed">0</span> effective WPM · <span id="finalAccuracy">100</span>% final accuracy</p>
+          <dl class="session-metrics" aria-label="Session results">
+            <div><dt>Gross speed</dt><dd><span id="grossSpeed">0</span> WPM</dd></div>
+            <div><dt>Effective speed</dt><dd><span id="effectiveSpeed">0</span> WPM</dd></div>
+            <div><dt>Final accuracy</dt><dd><span id="finalAccuracyDetail">100</span>%</dd></div>
+            <div><dt>Process accuracy</dt><dd><span id="processAccuracy">100</span>%</dd></div>
+            <div><dt>Corrections</dt><dd id="correctionSummary">0 corrected · 0 left</dd></div>
+            <div><dt>Completion</dt><dd id="completionTime">0s</dd></div>
+            <div><dt>Pauses</dt><dd id="pauseSummary">0</dd></div>
+            <div><dt>Consistency</dt><dd><span id="finalConsistency">100</span>%</dd></div>
+          </dl>
+          <section class="coaching-card" aria-labelledby="observationTitle">
+            <p class="eyebrow">One thing to take forward</p>
+            <h3 id="observationTitle">Steady start</h3>
+            <p id="runObservation"></p>
+            <p id="runEvidence" class="coaching-evidence" hidden></p>
+            <p id="runRecommendation" class="recommendation"></p>
+          </section>
+          <details id="secondaryFeedback" class="secondary-feedback" hidden>
+            <summary>Other patterns <span id="secondaryFeedbackCount"></span></summary>
+            <div id="secondaryFeedbackList" class="secondary-feedback-list"></div>
+          </details>
+          <section id="runNotes" class="run-notes" aria-labelledby="runNotesTitle" hidden>
+            <h3 id="runNotesTitle">Run notes</h3>
+            <div id="runNoteList" class="run-note-list" aria-label="Passage annotations"></div>
+            <p id="runNoteDescription" class="run-note-description" aria-live="polite" hidden></p>
+          </section>
+          <section id="resultPassage" class="result-passage" aria-labelledby="resultPassageTitle" hidden>
+            <div class="result-passage-heading">
+              <div><h3 id="resultPassageTitle">Notes in this passage</h3><p>Select a note to find it in context.</p></div>
+            </div>
+            <div id="resultTextDisplay" class="text-display result-text-display" aria-label="Annotated passage from this run"></div>
+          </section>
           <div class="run-detail-grid">
             <section aria-labelledby="lastRunHeatmapTitle">
               <h3 id="lastRunHeatmapTitle">Last run · character speed</h3>
@@ -67,6 +99,40 @@
               <div class="histogram-wrap"><canvas id="lastRunHistogram" aria-label="Last run letter speed histogram" role="img"></canvas></div>
             </section>
           </div>
+          <section class="result-details" aria-labelledby="analysisTitle">
+            <div class="result-details-heading"><h3 id="analysisTitle">Explore this run</h3><p>Open one view when you want more detail.</p></div>
+            <div class="view-tabs result-analysis-tabs" role="tablist" aria-label="Run analysis view">
+              <button id="rhythmTab" class="view-tab" type="button" role="tab" aria-selected="true" aria-controls="rhythmDetails" data-result-tab="rhythm">Rhythm</button>
+              <button id="errorsTab" class="view-tab" type="button" role="tab" aria-selected="false" aria-controls="errorDetails" data-result-tab="errors">Errors</button>
+              <button id="keysTab" class="view-tab" type="button" role="tab" aria-selected="false" aria-controls="transitionDetails" data-result-tab="keys">Keys</button>
+              <button id="wordsTab" class="view-tab" type="button" role="tab" aria-selected="false" aria-controls="wordDetails" data-result-tab="words">Words</button>
+              <button id="progressTab" class="view-tab" type="button" role="tab" aria-selected="false" aria-controls="progressDetails" data-result-tab="progress">Progress</button>
+            </div>
+            <section id="rhythmDetails" class="result-analysis-panel" role="tabpanel" aria-labelledby="rhythmTab" data-result-panel="rhythm">
+              <p id="rhythmDetailSummary" class="analysis-panel-summary">Inter-key timing and pauses</p>
+              <p id="rhythmDetailIntro" class="detail-intro"></p>
+              <div class="rhythm-chart-wrap"><canvas id="rhythmChart" aria-label="Typing speed throughout this run" role="img"></canvas></div>
+            </section>
+            <section id="errorDetails" class="result-analysis-panel" role="tabpanel" aria-labelledby="errorsTab" data-result-panel="errors" hidden>
+              <p id="errorDetailSummary" class="analysis-panel-summary">Committed-word error categories</p>
+              <p id="errorDetailIntro" class="detail-intro"></p>
+              <ul id="errorCategoryList" class="error-category-list"></ul>
+            </section>
+            <section id="transitionDetails" class="result-analysis-panel" role="tabpanel" aria-labelledby="keysTab" data-result-panel="keys" hidden>
+              <p id="transitionDetailSummary" class="analysis-panel-summary">Keyboard patterns</p>
+              <p id="transitionDetailIntro" class="detail-intro"></p>
+              <ul id="transitionList" class="error-category-list"></ul>
+            </section>
+            <section id="wordDetails" class="result-analysis-panel" role="tabpanel" aria-labelledby="wordsTab" data-result-panel="words" hidden>
+              <p id="wordDetailSummary" class="analysis-panel-summary">Words in this run</p>
+              <p id="wordDetailIntro" class="detail-intro"></p>
+              <ul id="wordList" class="error-category-list"></ul>
+            </section>
+            <section id="progressDetails" class="result-analysis-panel" role="tabpanel" aria-labelledby="progressTab" data-result-panel="progress" hidden>
+              <p id="progressDetailSummary" class="analysis-panel-summary">Progress on this piece</p>
+              <p id="progressDetailIntro" class="detail-intro"></p>
+            </section>
+          </section>
         </div>
 
         <section class="analytics-section" aria-labelledby="heatmapsTitle">

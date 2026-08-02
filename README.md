@@ -43,12 +43,14 @@ The main typing test shows a prompt and tracks:
 - per-character speed heatmap
 - run progress over time
 - speed/consistency tradeoff
+- session feedback: gross/effective WPM, final/process accuracy, corrections, pauses, and consistency
+- expandable rhythm, error, transition, and word-review details
 
 The prompt is the typing surface. A small focused input captures keyboard and IME events while the prompt renders the active word, caret, corrections, omissions, substitutions, and extra characters. Backspace edits only the active word; space commits it and aligns to the next prompt word. At timeout, the unfinished word is committed as-is.
 
 Consistency measures the variation between consecutive captured key presses, including mistakes, extra characters, backspaces, and spaces. Per-character speed heatmaps remain based on matched prompt characters.
 
-Typing history is stored in versioned `localStorage` records. Character statistics are keyed by text ID, while completed runs retain their resolved text ID even when the Random selector was used. The progress and tradeoff charts can show either the active text or all texts.
+Typing history is stored locally in versioned `localStorage` records. Character statistics are keyed by text ID, while completed runs retain their resolved text ID even when the Random selector was used. A bounded v3 analysis record retains detailed event data for the most recent 12 runs of each text; clearing typing history clears both the aggregate and detailed records. The progress and tradeoff charts can show either the active text or all texts.
 
 ## Reaction Test
 
