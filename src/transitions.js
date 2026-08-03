@@ -92,7 +92,7 @@ function addRelativeCost(samples) {
   return samples;
 }
 
-function summarisePair(pair, samples, classBaselines) {
+function summarisePair(pair, samples, allSamples) {
   const usable = samples.filter((sample) => !sample.hesitation);
   const scored = usable.filter((sample) => Number.isFinite(sample.relativeCost));
   const ratios = scored.map((sample) => sample.relativeCost);
@@ -102,9 +102,10 @@ function summarisePair(pair, samples, classBaselines) {
   const wordStarts = usable.filter((sample) => sample.atWordStart).length;
 
   const motorClass = getMotorClass(pair[0], pair[1]);
-  const classBaselineMs = classBaselines.get(motorClass) ?? null;
+  const classBaselineMs = getClassBaseline(allSamples, pair);
   const medianIntervalMs = Math.round(getMedian(intervals));
   const relativeCost = ratios.length ? getMedian(ratios) : null;
+  const withinWordBaselineMs = relativeCost ? Math.round(medianIntervalMs / relativeCost) : null;
   const dispersion = ratios.length >= 4 ? getQuantile(ratios, 0.75) - getQuantile(ratios, 0.25) : null;
   const wordStartShare = usable.length ? wordStarts / usable.length : 0;
 
@@ -132,6 +133,7 @@ function summarisePair(pair, samples, classBaselines) {
     distinctTexts: distinctTexts.size,
     words: [...distinctWords],
     medianIntervalMs,
+    withinWordBaselineMs,
     relativeCost: relativeCost === null ? null : Number(relativeCost.toFixed(3)),
     slowdownPercent: relativeCost === null ? null : Math.round((relativeCost - 1) * 100),
     dispersion: dispersion === null ? null : Number(dispersion.toFixed(3)),
@@ -145,25 +147,18 @@ function summarisePair(pair, samples, classBaselines) {
 
 // Baseline per motor class, so a same-finger hop is judged against other
 // same-finger hops rather than against hand alternations.
-function getClassBaselines(samples) {
-  const byClass = new Map();
-  samples.forEach((sample) => {
-    if (sample.hesitation) return;
-    const motorClass = getMotorClass(sample.pair[0], sample.pair[1]);
-    if (!byClass.has(motorClass)) byClass.set(motorClass, []);
-    byClass.get(motorClass).push(sample.intervalMs);
-  });
-
-  const baselines = new Map();
-  byClass.forEach((intervals, motorClass) => {
-    if (intervals.length >= 4) baselines.set(motorClass, Math.round(getMedian(intervals)));
-  });
-  return baselines;
+function getClassBaseline(samples, pair) {
+  const motorClass = getMotorClass(pair[0], pair[1]);
+  const intervals = samples
+    .filter((sample) => !sample.hesitation
+      && sample.pair !== pair
+      && getMotorClass(sample.pair[0], sample.pair[1]) === motorClass)
+    .map((sample) => sample.intervalMs);
+  return intervals.length >= 4 ? Math.round(getMedian(intervals)) : null;
 }
 
 export function measureTransitions(records, { pauseThresholdMs = Infinity } = {}) {
   const samples = addRelativeCost(records.flatMap((record) => collectTransitionSamples(record, { pauseThresholdMs })));
-  const classBaselines = getClassBaselines(samples);
 
   const byPair = new Map();
   samples.forEach((sample) => {
@@ -172,11 +167,21 @@ export function measureTransitions(records, { pauseThresholdMs = Infinity } = {}
   });
 
   return [...byPair.entries()]
-    .map(([pair, pairSamples]) => summarisePair(pair, pairSamples, classBaselines))
+    .map(([pair, pairSamples]) => summarisePair(pair, pairSamples, samples))
     .filter((row) => row.relativeCost !== null)
     .sort((left, right) => right.relativeCost - left.relativeCost);
 }
 
-export function getSlowestSupportedTransition(rows) {
-  return rows.find((row) => row.confidence === "supported" && row.slowdownPercent >= 20) ?? null;
+export function getSlowestSupportedTransition(rows, { presentPairs = null } = {}) {
+  return rows.find((row) => row.confidence === "supported"
+    && row.slowdownPercent >= 20
+    && row.motorClass !== "same-key"
+    && row.motorClass !== "unmapped"
+    && (presentPairs === null || presentPairs.has(row.pair))) ?? null;
+}
+
+// The pairs actually typed in one run, so a finding can be required to be about
+// the run it is shown beside.
+export function getRunPairs(record, options = {}) {
+  return new Set(collectTransitionSamples(record, options).map((sample) => sample.pair));
 }

@@ -142,9 +142,11 @@ function renderRhythm(elements, document, rhythm) {
       elements.rhythmStrip.append(band);
     }
 
+    // Position is the only thing a mark encodes: when the keystroke happened.
+    // Height is deliberately uniform, because a varying height would imply a
+    // magnitude the mark does not carry.
     const mark = el(document, "div", `beat${isPause ? " gap" : ""}`);
     mark.style.left = `${(event.timestampMs / total) * 100}%`;
-    mark.style.height = isPause ? "30px" : `${14 + (index % 3) * 2}px`;
     elements.rhythmStrip.append(mark);
   });
 }
@@ -196,7 +198,7 @@ function renderFinding(elements, document, finding) {
     const worst = Math.max(measure.valueMs, measure.baselineMs || 0) || 1;
     elements.findingBars.append(
       bar(document, { label: `${from} → ${to}`, mono: true, widthPercent: (measure.valueMs / worst) * 100, value: `${measure.valueMs}ms`, slow: true }),
-      bar(document, { label: measure.motorClassLabel, widthPercent: ((measure.baselineMs || 0) / worst) * 100, value: `${measure.baselineMs}ms` }),
+      bar(document, { label: "same words", widthPercent: ((measure.baselineMs || 0) / worst) * 100, value: `${measure.baselineMs}ms` }),
     );
   } else if (finding.level === "character") {
     elements.findingVisual.append(renderKeyboard(document, { lit: [finding.subject.value] }));
@@ -235,6 +237,7 @@ function renderFinding(elements, document, finding) {
   // The chips are the falsification record: which rival explanations the
   // evidence actually eliminated, plus how much of it there is.
   if (finding.accurate) elements.findingChips.append(chip(document, "ok", "keys correct"));
+  if (measure.motorClassLabel) elements.findingChips.append(chip(document, "evidence", measure.motorClassLabel));
   if (Number.isFinite(measure.slowdownPercent) && measure.slowdownPercent > 0) {
     elements.findingChips.append(chip(document, "warn", `+${measure.slowdownPercent}% slower`));
   }

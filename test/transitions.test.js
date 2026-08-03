@@ -167,3 +167,64 @@ test("each movement is judged against its own physical class", () => {
   assert.equal(sameFinger.motorClass, "same-finger");
   assert.ok(sameFinger.classBaselineMs === null || sameFinger.classBaselineMs > 0);
 });
+
+test("a doubled letter is not a movement and cannot lead the debrief", () => {
+  // "ss" in sessions, progress and across: real samples, but no travel between
+  // keys, and its only same-class company is itself.
+  const runs = Array.from({ length: 5 }, (_, index) => buildRun({
+    completedAt: `2026-02-0${index + 1}T00:00:00.000Z`,
+    words: [
+      { text: "sessions", base: 150, intervals: { ss: 260 } },
+      { text: "progress", base: 150, intervals: { ss: 260 } },
+      { text: "across", base: 150, intervals: { ss: 260 } },
+    ],
+  }));
+  const rows = measureTransitions(runs, { pauseThresholdMs: 700 });
+  const doubled = find(rows, "ss");
+
+  assert.equal(doubled.motorClass, "same-key");
+  assert.equal(doubled.confidence, "supported", "the measurement is still real");
+  assert.equal(getSlowestSupportedTransition(rows), null, "but it is not a movement finding");
+});
+
+test("a movement is never compared against its own samples", () => {
+  const runs = Array.from({ length: 5 }, (_, index) => buildRun({
+    completedAt: `2026-03-0${index + 1}T00:00:00.000Z`,
+    words: [{ text: "sessions", base: 150, intervals: { ss: 260 } }, { text: "across", base: 150, intervals: { ss: 260 } }],
+  }));
+  const doubled = find(measureTransitions(runs, { pauseThresholdMs: 700 }), "ss");
+
+  // "ss" is the only same-key pair here, so it has no honest class baseline —
+  // reporting one would mean comparing it with itself.
+  assert.equal(doubled.classBaselineMs, null);
+});
+
+test("the reported comparison is the one that ranked the movement", () => {
+  const rows = measureTransitions(Array.from({ length: 4 }, (_, index) => buildRun({
+    completedAt: `2026-04-0${index + 1}T00:00:00.000Z`,
+    words: [
+      { text: "petrol", base: 150, intervals: { tr: 300 } },
+      { text: "nitrate", base: 150, intervals: { tr: 300 } },
+      { text: "extra", base: 150, intervals: { tr: 300 } },
+    ],
+  })), { pauseThresholdMs: 700 });
+  const row = find(rows, "tr");
+
+  assert.equal(row.medianIntervalMs, 300);
+  assert.equal(row.withinWordBaselineMs, 150, "the baseline shown must be the within-word one");
+  assert.equal(Math.round(row.medianIntervalMs / row.withinWordBaselineMs * 100) - 100, row.slowdownPercent);
+});
+
+test("a pattern absent from this run does not lead its debrief", () => {
+  const rows = measureTransitions(Array.from({ length: 4 }, (_, index) => buildRun({
+    completedAt: `2026-05-0${index + 1}T00:00:00.000Z`,
+    words: [
+      { text: "petrol", base: 150, intervals: { tr: 300 } },
+      { text: "nitrate", base: 150, intervals: { tr: 300 } },
+      { text: "extra", base: 150, intervals: { tr: 300 } },
+    ],
+  })), { pauseThresholdMs: 700 });
+
+  assert.equal(getSlowestSupportedTransition(rows, { presentPairs: new Set(["tr"]) }).pair, "tr");
+  assert.equal(getSlowestSupportedTransition(rows, { presentPairs: new Set(["ab", "cd"]) }), null);
+});

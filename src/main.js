@@ -9,7 +9,7 @@ import { createStorage } from "./storage.js";
 import { TypingRun, now } from "./run-engine.js";
 import { getRunConsistency, getSmoothedRunIntervals, getTypingScore } from "./metrics.js";
 import { deriveRunAnnotations } from "./annotations.js";
-import { measureTransitions } from "./transitions.js";
+import { getRunPairs, measureTransitions } from "./transitions.js";
 import { selectFinding } from "./finding.js";
 import { buildDrill } from "./drills.js";
 import { getProgressState } from "./progress.js";
@@ -164,6 +164,9 @@ export function initTypingApp({
       words,
       runEvents: run.events,
       transitions: measureTransitions(records, { pauseThresholdMs: summary.pauseThresholdMs }),
+      // A finding leads the debrief only if it happened in the run being
+      // debriefed; history supports the claim but cannot be the whole of it.
+      runPairs: getRunPairs(currentRecord, { pauseThresholdMs: summary.pauseThresholdMs }),
       wordRecords: records,
       eventRecords: records,
     });

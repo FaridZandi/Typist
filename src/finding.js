@@ -18,8 +18,8 @@ function locateWords(words, predicate) {
   return words.flatMap((word, index) => (predicate(word.text) ? [index] : []));
 }
 
-function transitionFinding({ transitions, words }) {
-  const row = getSlowestSupportedTransition(transitions);
+function transitionFinding({ transitions, words, runPairs }) {
+  const row = getSlowestSupportedTransition(transitions, { presentPairs: runPairs });
   if (!row) return null;
 
   return {
@@ -28,7 +28,7 @@ function transitionFinding({ transitions, words }) {
     subject: { kind: "pair", value: row.pair },
     measure: {
       valueMs: row.medianIntervalMs,
-      baselineMs: row.classBaselineMs ?? Math.round(row.medianIntervalMs / (row.relativeCost || 1)),
+      baselineMs: row.withinWordBaselineMs,
       slowdownPercent: row.slowdownPercent,
       motorClass: row.motorClass,
       motorClassLabel: MOTOR_CLASS_LABELS[row.motorClass],
