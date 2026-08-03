@@ -14,6 +14,18 @@ export function average(values) {
   return values.length ? values.reduce((total, value) => total + value, 0) / values.length : 0;
 }
 
+// Linear-interpolated quantile, used for dispersion checks where a mean would
+// be dragged around by a single hesitation.
+export function getQuantile(values, quantile) {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((left, right) => left - right);
+  const position = (sorted.length - 1) * quantile;
+  const lower = Math.floor(position);
+  const upper = Math.ceil(position);
+  if (lower === upper) return sorted[lower];
+  return sorted[lower] + (sorted[upper] - sorted[lower]) * (position - lower);
+}
+
 export function getTypingScore(wordsPerMinute, accuracy, consistency) {
   return Math.round(wordsPerMinute * (accuracy / 100) + consistency);
 }

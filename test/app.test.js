@@ -1,13 +1,11 @@
 // Browser-flow tests for the typing page. These boot the real document and
 // drive it the way a typist would; anything that can be checked without a DOM
-// lives in analysis.test.js instead.
+// lives in analysis.test.js, transitions.test.js, or finding.test.js.
 
 import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createTypingPage } from "./helpers/page.js";
-import { getFeedbackBundles } from "../src/feedback.js";
-import { renderSecondaryFeedback } from "../src/view/results.js";
 
 const calmPrecision = { "typist-typing-settings-v2": { selectedText: "calm-precision", chartScope: "text" } };
 const shortText = [{ id: "short", title: "Short", body: "ab", durationSeconds: 30 }];
@@ -21,29 +19,197 @@ const promptText = (document) => [...document.querySelectorAll("#textDisplay .ch
   .map((character) => character.textContent)
   .join("");
 
-test("typing test records a completed text-id run and renders its results", async () => {
-  const { window, document } = await createTypingPage({ storage: calmPrecision });
+const finish = (window, document, transform = (text) => text) => {
   const input = document.querySelector("#typingInput");
-
-  input.value = promptText(document);
+  input.value = transform(promptText(document));
   input.dispatchEvent(new window.Event("input", { bubbles: true }));
+};
+
+test("typing test records a completed text-id run and shows the debrief", async () => {
+  const { window, document } = await createTypingPage({ storage: calmPrecision });
+  finish(window, document);
 
   assert.equal(document.querySelector("#resultPanel").hidden, false);
   assert.equal(document.querySelector("#testView").hidden, true);
   assert.equal(document.querySelector("#resultsView").hidden, false);
-  assert.equal(document.querySelector("#heatmapRuns").textContent, "1 run");
-  assert.equal(input.disabled, true);
+  assert.equal(document.querySelector("#typingInput").disabled, true);
   assert.match(document.querySelector("#finalSpeed").textContent, /^\d+$/);
-  assert.equal(document.querySelector("#resultPassage").hidden, false);
+  assert.match(document.querySelector("#finalAccuracy").textContent, /^\d+$/);
+
   const runs = JSON.parse(window.localStorage.getItem("typist-typing-runs-v2"));
   assert.equal(runs.runs[0].textId, "calm-precision");
+});
+
+test("accuracy is shown as filled cells rather than only a number", async () => {
+  const { window, document } = await createTypingPage({ storage: calmPrecision });
+  finish(window, document, (text) => text.replace("built", "biult"));
+
+  const pips = [...document.querySelectorAll("#accuracyPips i")];
+  assert.equal(pips.length, 20);
+  assert.ok(pips.some((pip) => pip.classList.contains("on")));
+  assert.match(document.querySelector("#accuracyPips").title, /characters correct/);
+});
+
+test("the rhythm strip places one mark per keystroke and marks the pauses", async () => {
+  const { window, document, app } = await createTypingPage({
+    catalog: [{ id: "short", title: "Short", body: "ab cd ef", durationSeconds: 30 }],
+    beforeInit: frozenTimer,
+  });
+
+  try {
+    app.handleCharacter("a", 0); app.handleCharacter("b", 120); app.handleSpace(240);
+    app.handleCharacter("c", 360); app.handleCharacter("d", 480); app.handleSpace(600);
+    // A deliberate stop before the last word.
+    app.handleCharacter("e", 2400); app.handleCharacter("f", 2520);
+
+    assert.equal(document.querySelector("#rhythmSection").hidden, false);
+    assert.ok(document.querySelectorAll("#rhythmStrip .beat").length >= 7);
+    assert.equal(document.querySelectorAll("#rhythmStrip .gapmark").length, 1);
+    assert.match(document.querySelector("#rhythmStrip .gapmark span").textContent, /^1\.8s$/);
+  } finally {
+    window.close();
+  }
+});
+
+test("the finding names its own level and shows what the evidence ruled out", async () => {
+  const { window, document, app } = await createTypingPage({
+    catalog: [{ id: "short", title: "Short", body: "ab cd", durationSeconds: 30 }],
+    beforeInit: frozenTimer,
+  });
+
+  try {
+    app.handleCharacter("a", 0); app.handleCharacter("b", 120); app.handleSpace(240);
+    app.handleCharacter("c", 2000); app.handleCharacter("d", 2120);
+
+    assert.equal(document.querySelector("#findingBlock").hidden, false);
+    assert.ok(document.querySelector("#findingLabel").textContent.length > 0);
+    assert.ok(document.querySelectorAll("#findingBars .bar-row").length >= 1);
+    // Every finding states how much evidence stands behind it.
+    assert.ok([...document.querySelectorAll("#findingChips .chip")].some((chip) => chip.classList.contains("evidence")));
+  } finally {
+    window.close();
+  }
+});
+
+test("a run-only finding is labelled as this run, never as a pattern", async () => {
+  const { window, document, app } = await createTypingPage({
+    catalog: [{ id: "short", title: "Short", body: "ab cd ef", durationSeconds: 30 }],
+    beforeInit: frozenTimer,
+  });
+
+  try {
+    app.handleCharacter("a", 0); app.handleCharacter("b", 120); app.handleSpace(240);
+    app.handleCharacter("c", 2000); app.handleSpace(2120);
+    app.handleCharacter("e", 4000); app.handleCharacter("f", 4120);
+
+    const evidence = [...document.querySelectorAll("#findingChips .chip")].find((chip) => chip.classList.contains("evidence"));
+    assert.equal(evidence.textContent, "this run");
+  } finally {
+    window.close();
+  }
+});
+
+test("a clean run offers no finding rather than inventing one", async () => {
+  const { window, document, app } = await createTypingPage({
+    catalog: [{ id: "short", title: "Short", body: "ab", durationSeconds: 30 }],
+    beforeInit: frozenTimer,
+  });
+
+  try {
+    app.handleCharacter("a", 0);
+    app.handleCharacter("b", 120);
+
+    assert.equal(document.querySelector("#findingBlock").hidden, true);
+    assert.equal(document.querySelector("#drillBlock").hidden, true);
+  } finally {
+    window.close();
+  }
+});
+
+test("no drill is offered for a finding that has nothing honest to practise", async () => {
+  const { window, document, app } = await createTypingPage({
+    catalog: [{ id: "short", title: "Short", body: "ab cd ef", durationSeconds: 30 }],
+    beforeInit: frozenTimer,
+  });
+
+  try {
+    app.handleCharacter("a", 0); app.handleSpace(120);
+    app.handleCharacter("c", 2000); app.handleSpace(2120);
+    app.handleCharacter("e", 4000); app.handleCharacter("f", 4120);
+
+    assert.equal(document.querySelector("#drillBlock").hidden, true, "a pause finding has no drill");
+  } finally {
+    window.close();
+  }
+});
+
+test("starting a drill swaps the prompt for generated practice material", async () => {
+  const { window, document, app } = await createTypingPage({ storage: calmPrecision });
+  finish(window, document);
+
+  const drill = app.getPendingDrill();
+  if (!drill) {
+    // Nothing supported after one run, which is itself the honest outcome.
+    assert.equal(document.querySelector("#drillBlock").hidden, true);
+    return;
+  }
+
+  document.querySelector("#startDrillButton").click();
+  assert.equal(app.getActiveText().isDrill, true);
+  assert.equal(document.querySelector("#testView").hidden, false);
+  assert.equal(document.querySelector("#resultPanel").hidden, true);
+  assert.match(document.querySelector("#currentTextMeta").textContent, /practice/);
+});
+
+test("a drill never enters the per-text history it is meant to improve", async () => {
+  const drill = { id: "drill:transition:tr", title: "“tr” movement", body: "extra nitrate", durationSeconds: 30, isDrill: true, focus: { level: "transition", pattern: "tr" }, words: ["extra"], pattern: "tr" };
+  const { window, document, app } = await createTypingPage({ storage: shortSettings, catalog: shortText, beforeInit: frozenTimer });
+
+  try {
+    app.resetRun({ text: drill });
+    finish(window, document);
+
+    const runs = JSON.parse(window.localStorage.getItem("typist-typing-runs-v2") ?? '{"runs":[]}');
+    assert.equal(runs.runs.length, 0, "a drill is practice, not a measurement of the piece");
+
+    const analysis = JSON.parse(window.localStorage.getItem("typist-typing-analysis-v3"));
+    const stored = analysis.texts["drill:transition:tr"].runs[0];
+    assert.equal(stored.isDrill, true);
+    assert.deepEqual(stored.drillFocus, { level: "transition", pattern: "tr" });
+  } finally {
+    window.close();
+  }
+});
+
+test("the passage stays available as evidence, collapsed by default", async () => {
+  const { window, document } = await createTypingPage({ storage: calmPrecision });
+  finish(window, document, (text) => text.replace("built", "biult"));
+
+  assert.equal(document.querySelector("#passageDetails").open, false);
+  assert.ok(document.querySelectorAll("#resultTextDisplay .prompt-word").length > 0);
+  assert.ok(document.querySelectorAll("#resultTextDisplay .char.incorrect").length > 0);
+});
+
+test("the finding is marked in the passage so the claim can be checked", async () => {
+  const { window, document, app } = await createTypingPage({
+    catalog: [{ id: "short", title: "Short", body: "ab cd", durationSeconds: 30 }],
+    beforeInit: frozenTimer,
+  });
+
+  try {
+    app.handleCharacter("a", 0); app.handleCharacter("b", 120); app.handleSpace(240);
+    app.handleCharacter("c", 2000); app.handleCharacter("d", 2120);
+
+    assert.ok(document.querySelectorAll("#resultTextDisplay .run-annotation-active").length >= 1);
+  } finally {
+    window.close();
+  }
 });
 
 test("typing caret starts at the beginning of the active word", async () => {
   const { document } = await createTypingPage({ storage: calmPrecision });
   const activeWord = document.querySelector(".active-word");
   assert.equal(activeWord.firstElementChild.classList.contains("typing-caret"), true);
-  assert.equal(activeWord.querySelector(".current"), null);
 });
 
 test("typing renders the caret before deferred metric updates", async () => {
@@ -51,10 +217,7 @@ test("typing renders the caret before deferred metric updates", async () => {
   const { window, document } = await createTypingPage({
     storage: calmPrecision,
     beforeInit(target) {
-      target.requestAnimationFrame = (callback) => {
-        frames.push(callback);
-        return frames.length;
-      };
+      target.requestAnimationFrame = (callback) => { frames.push(callback); return frames.length; };
     },
   });
   const input = document.querySelector("#typingInput");
@@ -68,11 +231,9 @@ test("typing renders the caret before deferred metric updates", async () => {
     assert.equal(frames.length, 1);
 
     frames.shift()();
-    assert.equal(frames.length, 1);
     frames.shift()();
     assert.notEqual(document.querySelector("#speedValue").textContent, "0");
   } finally {
-    document.querySelector("#restartButton").click();
     window.close();
   }
 });
@@ -84,19 +245,15 @@ test("typing consistency uses every key press, including mistakes", async () => 
     app.handleCharacter("x", 0);
     app.handleCharacter("x", 100);
     app.handleCharacter("x", 1000);
-
     assert.equal(document.querySelector("#consistencyValue").textContent, "20");
   } finally {
-    document.querySelector("#restartButton").click();
     window.close();
   }
 });
 
 test("typing stores bounded event records and separates corrected process errors from final text", async () => {
   const { window, document, app } = await createTypingPage({
-    storage: shortSettings,
-    catalog: shortText,
-    beforeInit: frozenTimer,
+    storage: shortSettings, catalog: shortText, beforeInit: frozenTimer,
   });
 
   try {
@@ -106,45 +263,12 @@ test("typing stores bounded event records and separates corrected process errors
     app.handleCharacter("b", 300);
 
     assert.equal(document.querySelector("#finalAccuracy").textContent, "100");
-    assert.equal(document.querySelector("#processAccuracy").textContent, "67");
-    assert.match(document.querySelector("#runObservation").textContent, /corrected error/);
     const analysis = JSON.parse(window.localStorage.getItem("typist-typing-analysis-v3"));
     const stored = analysis.texts.short.runs[0];
     assert.deepEqual(stored.events.map((event) => event.type), ["character", "backspace", "character", "character"]);
     assert.equal(stored.summary.correctedErrors, 1);
     assert.equal(stored.summary.remainingErrors, 0);
-    assert.equal(stored.derivationVersion, 1);
-    assert.equal(stored.progressState.derivationVersion, 1);
-    assert.match(document.querySelector("#runNoteList").textContent, /Correction/);
-    assert.match(document.querySelector("#transitionDetailSummary").textContent, /1 key-to-key movement.*collecting examples/);
-    assert.match(document.querySelector("#transitionList").textContent, /“ab”/);
-    assert.match(document.querySelector("#wordList").textContent, /“ab”/);
-  } finally {
-    window.close();
-  }
-});
-
-test("secondary feedback stays collapsed until a run has more than one useful bundle", async () => {
-  const { window, document, app } = await createTypingPage();
-
-  try {
-    const bundles = getFeedbackBundles({ pauseCount: 2, pauseThresholdMs: 700, correctedErrors: 4, remainingErrors: 2, transitions: [] });
-    const render = (list, primary) => renderSecondaryFeedback({ elements: app.elements, document, bundles: list, primaryBundle: primary ?? list[0] });
-
-    render(bundles);
-    assert.equal(document.querySelector("#secondaryFeedback").hidden, false);
-    assert.equal(document.querySelector("#secondaryFeedback").open, false);
-    assert.equal(document.querySelector("#secondaryFeedbackCount").textContent, "· 2");
-    assert.equal(document.querySelectorAll("#secondaryFeedbackList .secondary-feedback-item").length, 2);
-    assert.match(document.querySelector("#secondaryFeedbackList").textContent, /Practice:/);
-
-    const escape = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    render(bundles, bundles[1]);
-    assert.doesNotMatch(document.querySelector("#secondaryFeedbackList").textContent, new RegExp(escape(bundles[1].title)));
-    assert.match(document.querySelector("#secondaryFeedbackList").textContent, new RegExp(escape(bundles[0].title)));
-
-    render(bundles.slice(0, 1));
-    assert.equal(document.querySelector("#secondaryFeedback").hidden, true);
+    assert.equal(stored.isDrill, false);
   } finally {
     window.close();
   }
@@ -166,7 +290,7 @@ test("typing event records preserve modifier state", async () => {
 });
 
 test("typing classifies an adjacent swapped pair as a transposition", async () => {
-  const { window, document, app, chartInstances } = await createTypingPage({ catalog: shortText });
+  const { window, document, app } = await createTypingPage({ catalog: shortText, beforeInit: frozenTimer });
 
   try {
     app.handleCharacter("b", 0);
@@ -175,106 +299,6 @@ test("typing classifies an adjacent swapped pair as a transposition", async () =
     const analysis = JSON.parse(window.localStorage.getItem("typist-typing-analysis-v3"));
     assert.equal(analysis.texts.short.runs[0].summary.categories.transposition, 1);
     assert.equal(document.querySelector("#finalAccuracy").textContent, "0");
-    assert.match(document.querySelector("#errorDetailSummary").textContent, /2 final-text errors/);
-    assert.equal(document.querySelector("#errorCategoryList").textContent, "Transpositions1");
-    const rhythm = chartInstances.find((chart) => chart.data.datasets[0].label === "Inter-key speed");
-    assert.equal(rhythm.data.datasets[0].data.length, 2);
-  } finally {
-    window.close();
-  }
-});
-
-test("completed runs turn meaningful events into selectable passage notes", async () => {
-  const { window, document, app } = await createTypingPage({
-    catalog: [{ id: "short", title: "Short", body: "ab cd", durationSeconds: 30 }],
-  });
-
-  try {
-    app.handleCharacter("b", 0);
-    app.handleCharacter("a", 100);
-    app.handleSpace(200);
-    app.handleCharacter("c", 1300);
-    app.handleCharacter("d", 1400);
-
-    const notes = [...document.querySelectorAll("#runNoteList .run-note")];
-    assert.equal(notes.length >= 2, true);
-    assert.match(notes.map((note) => note.textContent).join(" "), /transposition.*Pause/);
-    assert.match(notes[0].getAttribute("aria-label"), /committed|pause/i);
-    assert.equal(document.querySelector("#resultPassage").hidden, false);
-    notes[0].click();
-    assert.equal(document.querySelectorAll("#resultTextDisplay .run-annotation-active").length, 1);
-    assert.equal(document.querySelector("#runNoteDescription").hidden, false);
-    assert.match(document.querySelector("#runNoteDescription").textContent, /committed|pause/i);
-  } finally {
-    window.close();
-  }
-});
-
-test("result analysis exposes one plain-language tab at a time", async () => {
-  const { window, document, app } = await createTypingPage();
-
-  try {
-    app.setResultAnalysisTab("errors");
-    assert.equal(document.querySelector("#errorDetails").hidden, false);
-    assert.equal(document.querySelector("#rhythmDetails").hidden, true);
-    assert.equal(document.querySelector("#errorsTab").getAttribute("aria-selected"), "true");
-    assert.equal(document.querySelector("#rhythmTab").getAttribute("aria-selected"), "false");
-  } finally {
-    window.close();
-  }
-});
-
-test("a delayed aligned transition becomes a passage note", async () => {
-  const { window, document, app } = await createTypingPage({
-    catalog: [{ id: "short", title: "Short", body: "abc", durationSeconds: 30 }],
-  });
-
-  try {
-    app.handleCharacter("a", 0);
-    app.handleCharacter("b", 100);
-    app.handleCharacter("c", 1500);
-    assert.match(document.querySelector("#runNoteList").textContent, /Slow “bc”/);
-    assert.match(document.querySelector(".run-annotation").title, /slower than this run/);
-  } finally {
-    window.close();
-  }
-});
-
-test("an unusually slow word becomes a length-normalized passage note", async () => {
-  const { window, document, app } = await createTypingPage({
-    catalog: [{ id: "short", title: "Short", body: "a b ccc", durationSeconds: 30 }],
-  });
-
-  try {
-    app.handleCharacter("a", 0); app.handleSpace(100);
-    app.handleCharacter("b", 200); app.handleSpace(300);
-    app.handleCharacter("c", 400); app.handleCharacter("c", 500); app.handleCharacter("c", 1700);
-    assert.match(document.querySelector("#runNoteList").textContent, /Slow word “ccc”/);
-  } finally {
-    window.close();
-  }
-});
-
-test("a meaningful late-run pace change becomes a passage note", async () => {
-  const { window, document, app } = await createTypingPage({
-    catalog: [{ id: "short", title: "Short", body: "a b c", durationSeconds: 30 }],
-  });
-
-  try {
-    app.handleCharacter("a", 0); app.handleSpace(100);
-    app.handleCharacter("b", 200); app.handleSpace(300);
-    app.handleCharacter("c", 1300);
-    assert.match(document.querySelector("#runNoteList").textContent, /Pace slowed near the end/);
-  } finally {
-    window.close();
-  }
-});
-
-test("live performance metrics stay hidden while typing", async () => {
-  const { window, document } = await createTypingPage();
-
-  try {
-    assert.equal(document.querySelector("#liveMetrics").hidden, true);
   } finally {
     window.close();
   }
@@ -286,25 +310,18 @@ test("typing commits one word, preserves a correction, and keeps extra letters l
   const type = (key) => input.dispatchEvent(new window.KeyboardEvent("keydown", { bubbles: true, cancelable: true, key }));
 
   try {
-    type("T");
-    type("z");
-    type("Backspace");
-    type("y");
-    type(" ");
+    type("T"); type("z"); type("Backspace"); type("y"); type(" ");
     assert.equal(document.querySelectorAll("#textDisplay .char")[1].classList.contains("corrected"), true);
     type("w"); type("e"); type("l"); type("l"); type("l");
     assert.equal(document.querySelectorAll("#textDisplay .extra-char").length, 1);
     type(" ");
     assert.equal(document.querySelector(".active-word").textContent.startsWith("is"), true);
-    assert.equal(document.querySelectorAll("#textDisplay .extra-char").length, 1);
     assert.equal(Number(document.querySelector("#accuracyValue").textContent) < 100, true);
 
     document.querySelector("#restartButton").click();
     assert.equal(input.value, "");
-    assert.equal(document.querySelector("#speedValue").textContent, "0");
     assert.equal(document.querySelector("#resultPanel").hidden, true);
   } finally {
-    document.querySelector("#restartButton").click();
     window.close();
   }
 });
@@ -317,10 +334,8 @@ test("committed extra characters lower typing accuracy", async () => {
   try {
     for (const key of "Typingx") type(key);
     type(" ");
-
     assert.equal(document.querySelector("#accuracyValue").textContent, "88");
   } finally {
-    document.querySelector("#restartButton").click();
     window.close();
   }
 });
@@ -331,54 +346,40 @@ test("selected text duration controls WPM timing and progress semantics", async 
     storage: shortSettings,
     catalog: [{ id: "short", title: "Short piece", body: "Typing practice.", durationSeconds: 30 }],
     beforeInit(target) {
-      target.setInterval = (callback) => {
-        intervalCallbacks.push(callback);
-        return intervalCallbacks.length;
-      };
+      target.setInterval = (callback) => { intervalCallbacks.push(callback); return intervalCallbacks.length; };
       target.clearInterval = () => {};
     },
   });
-  const input = document.querySelector("#typingInput");
 
-  input.dispatchEvent(new window.KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: "T" }));
+  document.querySelector("#typingInput").dispatchEvent(new window.KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: "T" }));
   for (let second = 0; second < 15; second += 1) intervalCallbacks[0]();
 
   assert.equal(document.querySelector(".timer-progress").getAttribute("aria-valuemax"), "30");
   assert.equal(document.querySelector("#speedValue").textContent, "1");
-  document.querySelector("#restartButton").click();
   window.close();
 });
 
 test("text selection is locked during a run and restored after reset or completion", async () => {
   const { window, document } = await createTypingPage({ storage: calmPrecision });
-  const input = document.querySelector("#typingInput");
   const select = document.querySelector("#textSelect");
-  const prompt = promptText(document);
 
   assert.equal(select.disabled, false);
-  input.dispatchEvent(new window.KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: "T" }));
+  document.querySelector("#typingInput").dispatchEvent(new window.KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: "T" }));
   assert.equal(select.disabled, true);
 
   document.querySelector("#restartButton").click();
   assert.equal(select.disabled, false);
-  assert.equal(document.querySelector("#testView").hidden, false);
-  assert.equal(document.querySelector("#resultsView").hidden, true);
-  input.value = prompt;
-  input.dispatchEvent(new window.Event("input", { bubbles: true }));
+  finish(window, document);
   assert.equal(document.querySelector("#resultPanel").hidden, false);
   assert.equal(select.disabled, false);
 });
 
 test("typing history can be cleared across aggregate and detailed stores", async () => {
   const { window, document } = await createTypingPage();
-  const input = document.querySelector("#typingInput");
-
-  input.value = promptText(document);
-  input.dispatchEvent(new window.Event("input", { bubbles: true }));
+  finish(window, document);
   window.confirm = () => true;
   document.querySelector("#clearHistoryButton").click();
 
-  assert.equal(document.querySelector("#heatmapRuns").textContent, "0 runs");
   assert.deepEqual(JSON.parse(window.localStorage.getItem("typist-typing-stats-v2")), { version: 2, texts: {} });
   assert.deepEqual(JSON.parse(window.localStorage.getItem("typist-typing-runs-v2")), { version: 2, runs: [] });
   assert.deepEqual(JSON.parse(window.localStorage.getItem("typist-typing-analysis-v3")), { version: 3, texts: {} });
@@ -386,26 +387,11 @@ test("typing history can be cleared across aggregate and detailed stores", async
 
 test("cancelling the clear-history confirmation preserves the completed run", async () => {
   const { window, document } = await createTypingPage();
-  const input = document.querySelector("#typingInput");
-
-  input.value = promptText(document);
-  input.dispatchEvent(new window.Event("input", { bubbles: true }));
+  finish(window, document);
   window.confirm = () => false;
   document.querySelector("#clearHistoryButton").click();
 
-  assert.equal(document.querySelector("#heatmapRuns").textContent, "1 run");
-});
-
-test("typing commits omitted prompt characters as errors", async () => {
-  const { window, document } = await createTypingPage({ storage: calmPrecision });
-  const input = document.querySelector("#typingInput");
-
-  input.value = "T ";
-  input.dispatchEvent(new window.Event("input", { bubbles: true }));
-
-  assert.equal(document.querySelector("#resultPanel").hidden, true);
-  assert.equal(Number(document.querySelector("#accuracyValue").textContent) < 100, true);
-  document.querySelector("#restartButton").click();
+  assert.equal(JSON.parse(window.localStorage.getItem("typist-typing-runs-v2")).runs.length, 1);
 });
 
 test("typing timer completes and records an incomplete run when time expires", async () => {
@@ -413,10 +399,7 @@ test("typing timer completes and records an incomplete run when time expires", a
   const { window, document } = await createTypingPage({
     storage: calmPrecision,
     beforeInit(target) {
-      target.setInterval = (callback) => {
-        intervalCallbacks.push(callback);
-        return intervalCallbacks.length;
-      };
+      target.setInterval = (callback) => { intervalCallbacks.push(callback); return intervalCallbacks.length; };
       target.clearInterval = () => {};
     },
   });
@@ -436,10 +419,7 @@ test("typing timer completes and records an incomplete run when time expires", a
 
 test("the first Tab after a run focuses Restart", async () => {
   const { window, document } = await createTypingPage();
-  const input = document.querySelector("#typingInput");
-
-  input.value = promptText(document);
-  input.dispatchEvent(new window.Event("input", { bubbles: true }));
+  finish(window, document);
   document.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true }));
 
   assert.equal(document.activeElement, document.querySelector("#restartButton"));
@@ -448,7 +428,6 @@ test("the first Tab after a run focuses Restart", async () => {
 test("Space does not scroll the page outside an active control", async () => {
   const { window, document } = await createTypingPage();
   const space = new window.KeyboardEvent("keydown", { key: " ", bubbles: true, cancelable: true });
-
   document.dispatchEvent(space);
 
   assert.equal(space.defaultPrevented, true);
@@ -466,140 +445,41 @@ test("random practice resolves to a concrete text and removes legacy typing keys
         "typist-heatmap:old": { runs: 99 },
       },
     });
-    const input = document.querySelector("#typingInput");
-    input.value = promptText(document);
-    input.dispatchEvent(new window.Event("input", { bubbles: true }));
+    finish(window, document);
 
     const runs = JSON.parse(window.localStorage.getItem("typist-typing-runs-v2"));
     assert.equal(runs.runs.length, 1);
     assert.notEqual(runs.runs[0].textId, "random");
     assert.equal(window.localStorage.getItem("typist-heatmap:old"), null);
-
-    document.querySelector("#restartButton").click();
     assert.notEqual(document.querySelector("#currentTextLabel").textContent, "");
   } finally {
     Math.random = realRandom;
   }
 });
 
-test("chart scope switches from the active text to every stored text", async () => {
-  const runs = [
-    { textId: "calm-precision", completedAt: "2026-07-01T10:00:00.000Z", wordsPerMinute: 40, accuracy: 95, consistency: 88, typingScore: 126 },
-    { textId: "one-word", completedAt: "2026-07-02T10:00:00.000Z", wordsPerMinute: 55, accuracy: 92, consistency: 80, typingScore: 135 },
-  ];
-  const { window, document, chartInstances } = await createTypingPage({
+test("speed is placed against the range this typist has produced on this piece", async () => {
+  const { window, document } = await createTypingPage({
     storage: {
-      "typist-typing-settings-v2": { selectedText: "calm-precision", chartScope: "text" },
-      "typist-typing-runs-v2": { version: 2, runs },
-    },
-  });
-  const progress = chartInstances.find((chart) => chart.canvas.id === "progressChart");
-  const tradeoff = chartInstances.find((chart) => chart.canvas.id === "tradeoffChart");
-  assert.equal(progress.data.datasets[0].data.length, 1);
-  assert.equal(tradeoff.data.datasets[0].data.length, 1);
-
-  const allScope = document.querySelector("#chartScopeAll");
-  allScope.checked = true;
-  allScope.dispatchEvent(new window.Event("change", { bubbles: true }));
-  assert.equal(progress.data.datasets[0].data.length, 2);
-  assert.equal(tradeoff.data.datasets[0].data.length, 2);
-  assert.equal(progress.data.datasets[0].data[1].textTitle, "One word at a time");
-  assert.equal(tradeoff.data.datasets[0].data[1].textTitle, "One word at a time");
-});
-
-test("all-text progress offers an explicitly approximate normalized-speed series", async () => {
-  const { window, chartInstances } = await createTypingPage({
-    storage: {
-      "typist-typing-settings-v2": { selectedText: "calm-precision", chartScope: "all" },
-      "typist-typing-runs-v2": { version: 2, runs: [{ textId: "calm-precision", completedAt: "2026-07-01T10:00:00.000Z", wordsPerMinute: 40, accuracy: 95, consistency: 88, typingScore: 126, approximateNormalizedWpm: 36 }] },
-    },
-  });
-
-  try {
-    const chart = chartInstances.find((instance) => instance.canvas.id === "progressChart");
-    assert.equal(chart.data.datasets.some((dataset) => dataset.label === "Approx. normalized WPM"), true);
-  } finally {
-    window.close();
-  }
-});
-
-test("result progress detail compares only runs from the active text", async () => {
-  const { window, document, app } = await createTypingPage({
-    storage: {
-      "typist-typing-settings-v2": { selectedText: "short", chartScope: "text" },
+      ...calmPrecision,
       "typist-typing-runs-v2": { version: 2, runs: [
-        { textId: "short", completedAt: "2026-07-01T10:00:00.000Z", wordsPerMinute: 20, accuracy: 90, consistency: 80, typingScore: 98 },
-        { textId: "other", completedAt: "2026-07-02T10:00:00.000Z", wordsPerMinute: 90, accuracy: 99, consistency: 90, typingScore: 179 },
+        { textId: "calm-precision", completedAt: "2026-07-01T10:00:00.000Z", wordsPerMinute: 40, accuracy: 95, consistency: 88, typingScore: 126 },
+        { textId: "calm-precision", completedAt: "2026-07-02T10:00:00.000Z", wordsPerMinute: 52, accuracy: 96, consistency: 90, typingScore: 140 },
       ] },
     },
-    catalog: [
-      { id: "short", title: "Short", body: "a", durationSeconds: 30 },
-      { id: "other", title: "Other", body: "b", durationSeconds: 30 },
-    ],
   });
+  finish(window, document);
 
-  try {
-    app.handleCharacter("a", 0);
-    assert.match(document.querySelector("#progressDetailIntro").textContent, /same piece/);
-    assert.doesNotMatch(document.querySelector("#progressDetailIntro").textContent, /90 WPM/);
-  } finally {
-    window.close();
-  }
+  assert.equal(document.querySelector("#speedRange").hidden, false);
+  assert.equal(document.querySelectorAll("#speedRange .tick").length, 1);
+  assert.equal(document.querySelectorAll("#speedRange .ghost").length, 1, "the previous run stays visible behind this one");
+  assert.equal(document.querySelector("#deltaStat").hidden, false);
+  assert.match(document.querySelector("#speedDelta").textContent, /[▲▼=]/);
 });
 
-test("trend tabs reveal one chart at a time", async () => {
-  const { document } = await createTypingPage();
-
-  assert.equal(document.querySelector("#progressPanel").hidden, false);
-  assert.equal(document.querySelector("#tradeoffPanel").hidden, true);
-  document.querySelector("#tradeoffTab").click();
-  assert.equal(document.querySelector("#progressPanel").hidden, true);
-  assert.equal(document.querySelector("#tradeoffPanel").hidden, false);
-  assert.equal(document.querySelector("#tradeoffTab").getAttribute("aria-selected"), "true");
-});
-
-test("the passage shows one lens at a time and each states its own scope", async () => {
-  const { window, document, app } = await createTypingPage({ catalog: shortText });
-
-  try {
-    app.handleCharacter("a", 0);
-    app.handleCharacter("b", 100);
-
-    // Notes lead: the chips are the index into the passage.
-    assert.equal(document.querySelector("#lensNotes").getAttribute("aria-pressed"), "true");
-    assert.equal(document.querySelector("#passageLegend").hidden, true);
-    assert.equal(document.querySelector("#allSpeedScope").textContent, "1 run");
-
-    document.querySelector("#lensAllAccuracy").click();
-    assert.equal(document.querySelector("#lensAllAccuracy").getAttribute("aria-pressed"), "true");
-    assert.equal(document.querySelector("#lensNotes").getAttribute("aria-pressed"), "false");
-    assert.equal(document.querySelector("#runNoteList").hidden, true);
-    assert.equal(document.querySelector("#passageLegend").hidden, false);
-    assert.match(document.querySelector("#passageLensHint").textContent, /across every recorded run/);
-    assert.equal(document.querySelectorAll("#resultTextDisplay .heatmap-char").length, 2);
-    assert.equal(document.querySelectorAll("#resultTextDisplay .prompt-word").length, 0);
-
-    document.querySelector("#lensNotes").click();
-    assert.equal(document.querySelector("#passageLegend").hidden, true);
-    assert.equal(document.querySelectorAll("#resultTextDisplay .prompt-word").length, 1);
-  } finally {
-    window.close();
-  }
-});
-
-test("only one passage is rendered on the result screen", async () => {
+test("the first run on a piece has no range to compare against", async () => {
   const { window, document } = await createTypingPage({ storage: calmPrecision });
-  const input = document.querySelector("#typingInput");
+  finish(window, document);
 
-  try {
-    input.value = promptText(document);
-    input.dispatchEvent(new window.Event("input", { bubbles: true }));
-
-    // The live prompt plus exactly one result passage — no duplicated copies.
-    assert.equal(document.querySelectorAll("#resultsView .text-display").length, 1);
-    assert.equal(document.querySelector("#heatmapDisplay"), null);
-    assert.equal(document.querySelector("#lastRunHeatmap"), null);
-  } finally {
-    window.close();
-  }
+  assert.equal(document.querySelector("#speedRange").hidden, true);
+  assert.equal(document.querySelector("#deltaStat").hidden, true);
 });

@@ -12,3 +12,9 @@
   border: 0 !important;
 }
 
+
+/* Loaded after the component sheets, so a component's own display value can
+   never leave a [hidden] element on screen. */
+[hidden] {
+  display: none;
+}

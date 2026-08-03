@@ -6,6 +6,17 @@ how results should be worded.
 
 ## Open
 
+- [ ] Fold the remaining signal types from the old feedback engine into the
+      finding ladder as extra rungs: Shift timing, trigrams, and prefix/suffix
+      word patterns. They were measured and ranked before the ladder replaced
+      that engine, and the aggregates that produced them still exist in
+      `src/aggregates.js`. Recover the wording and thresholds from `src/feedback.js`
+      in the history if needed.
+
+- [ ] Use drill outcomes to test a finding. A drill records its focus and its
+      events, so a later run can ask whether the pattern actually improved — and
+      the app can retract a finding it can no longer support.
+
 - [ ] The first letter of the text is never coloured in the letter-speed
       heatmap; it stays grey no matter how many runs are recorded.
 

@@ -24,7 +24,8 @@ http://localhost:8000/reaction.html
 http://localhost:8000/dvorak.html
 ```
 
-For the chart features, an internet connection is needed because Chart.js is loaded from a CDN.
+The typing page has no external dependencies. The reaction page loads Chart.js
+from a CDN, so it needs an internet connection for its history chart.
 
 ## Testing
 
@@ -49,35 +50,70 @@ The suite is split by what each test needs:
 
 ## Typing Test
 
-The main typing test shows a prompt and tracks:
+The main typing test shows a prompt, then a debrief of the run.
 
-- WPM
-- accuracy
-- consistency
-- typing score
-- per-character accuracy and speed
-- run progress over time
-- speed/consistency tradeoff
-- session feedback: gross/effective WPM, final/process accuracy, corrections, pauses, and consistency
-- expandable rhythm, error, transition, and word-review details
+### The debrief
 
-### The result screen
+Nothing on the result screen is asserted in prose. Each claim is a thing to look
+at:
 
-Effective WPM and final accuracy lead; the other six numbers stay deliberately
-quieter beneath them.
+- **speed** placed inside the range this typist has produced on this same piece,
+  with the previous run behind it — "good" is defined by them, not by a global
+  number;
+- **accuracy** as filled cells, because counting the red ones is faster than
+  reading a percentage;
+- **rhythm** as one mark per keystroke spaced by real time, so steady typing
+  looks like a comb and a hesitation is a gap you find by looking;
+- **the finding** drawn on the Dvorak keyboard when it is a movement, with
+  comparison bars against the same class of movement;
+- **the fix** as drill words that can be started, not a sentence describing an
+  exercise the app cannot provide.
 
-The passage is rendered **once** and a single control changes what it encodes:
-run notes, letter speed for this run, letter speed across all runs, or accuracy
-across all runs. Each option states its own scope, so this-run and all-runs
-evidence are never mistaken for each other. Run notes act as the index into it —
-hovering one lights the word it refers to, selecting one pins it. Hovering a bar
-in the letter-speed histogram keeps only letters in that speed band lit.
+### The finding ladder
+
+Exactly one finding is shown, taken from the highest rung the evidence supports:
+
+```text
+transition → word → character → pause → pace → this run → nothing
+```
+
+The upper rungs need cross-run support. The lower ones describe only the run
+that just happened and are labelled `this run`. When nothing clears its bar the
+screen shows less rather than inventing a diagnosis.
+
+### Not fooling ourselves
+
+A raw inter-key interval has several causes competing for credit, so a movement
+is only measured when the evidence can separate it from the alternatives:
+
+- intervals past the run's pause threshold are hesitation, not movement, and are
+  excluded outright rather than averaged in;
+- each occurrence is scored against *the other movements in the same word*, so a
+  hard or unfamiliar word makes all of its movements slow together and none of
+  them stands out;
+- a pattern must appear in at least three distinct words, or it is a fact about
+  one word;
+- a pattern seen only at the start of words cannot be told apart from the cost of
+  recognising the word, and stays unattributed;
+- widely varying timings are inconsistent rather than difficult;
+- movements are compared against their own physical class, since a same-finger
+  hop is slower for everyone.
+
+The chips beside a finding are the record of which of these rivals the evidence
+actually ruled out.
+
+Drill words come from the practice catalog rather than a bundled dictionary, and
+deliberately include occurrences in the middle of words — a drill built only of
+words *starting* with the pattern could never confirm the pattern it practises.
+A drill is practice rather than a measurement of the piece, so it never enters
+the per-text history, though its events are recorded so a later run can test
+whether it helped.
 
 The prompt is the typing surface. A small focused input captures keyboard and IME events while the prompt renders the active word, caret, corrections, omissions, substitutions, and extra characters. Backspace edits only the active word; space commits it and aligns to the next prompt word. At timeout, the unfinished word is committed as-is.
 
-Consistency measures the variation between consecutive captured key presses, including mistakes, extra characters, backspaces, and spaces. Per-character speed remains based on matched prompt characters.
+Consistency measures the variation between consecutive captured key presses, including mistakes, extra characters, backspaces, and spaces.
 
-Typing history is stored locally in versioned `localStorage` records. Character statistics are keyed by text ID, while completed runs retain their resolved text ID even when the Random selector was used. A bounded v3 analysis record retains detailed event data for the most recent 12 runs of each text; clearing typing history clears both the aggregate and detailed records. The progress and tradeoff charts can show either the active text or all texts.
+Typing history is stored locally in versioned `localStorage` records. Character statistics are keyed by text ID, while completed runs retain their resolved text ID even when the Random selector was used. A bounded v3 analysis record retains detailed event data for the most recent 12 runs of each text; clearing typing history clears both the aggregate and detailed records.
 
 ## Reaction Test
 
@@ -128,10 +164,11 @@ the view layer knows the DOM exists. The typing test lives in `src/`:
 - `metrics.js`: scoring and timing maths
 - `aggregates.js`: cross-run character, n-gram, word, and Shift aggregation
 - `progress.js`: progress states over a series of runs
-- `feedback.js`: ranked observations and the primary recommendation
 - `annotations.js`: derived passage annotations
-- `charts.js`: Chart.js wrappers
-- `view/`: prompt, passage-heatmap, and result-screen rendering
+- `transitions.js`: confound-controlled key-to-key measurement
+- `finding.js`: the ladder that picks the one thing to show
+- `drills.js`: practice material generated from the catalog
+- `view/`: the prompt surface and the debrief
 
 The reaction test mirrors it in `src/reaction/`:
 
@@ -143,5 +180,6 @@ The reaction test mirrors it in `src/reaction/`:
 - `metronome.js`: the optional visual beat
 - `charts.js` and `view/keyboards.js`: history chart and key heatmaps
 
-`src/shared/keyboard-layout.js` holds the Dvorak schematic used by both the
-standalone page and the reaction heatmaps.
+`src/shared/keyboard-layout.js` holds the Dvorak schematic used by the standalone
+page, the reaction heatmaps, and the finding diagram. `src/shared/keyboard-map.js`
+adds the finger and hand assignment that classifies a movement.

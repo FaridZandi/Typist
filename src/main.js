@@ -7,48 +7,26 @@ import { typingTexts } from "./texts.js";
 import { createTextIndex, getRunLengthSeconds, getTextDifficulty, getWords, resolveText } from "./text-model.js";
 import { createStorage } from "./storage.js";
 import { TypingRun, now } from "./run-engine.js";
-import { getRhythmTimeline, getRunConsistency, getSmoothedRunIntervals, getSpeedHistogramBins, getTypingScore, formatDuration } from "./metrics.js";
+import { getRunConsistency, getSmoothedRunIntervals, getTypingScore } from "./metrics.js";
 import { deriveRunAnnotations } from "./annotations.js";
-import { choosePrimaryFeedback, formatBundleEvidence, getCoaching, getFeedbackBundles } from "./feedback.js";
+import { measureTransitions } from "./transitions.js";
+import { selectFinding } from "./finding.js";
+import { buildDrill } from "./drills.js";
 import { getProgressState } from "./progress.js";
-import { createCharts } from "./charts.js";
 import { renderAnnotatedPassage, renderPrompt } from "./view/prompt.js";
-import {
-  buildAccuracyCells,
-  buildAllSpeedCells,
-  buildRunSpeedCells,
-  paintHeatmapCells,
-} from "./view/heatmaps.js";
-import {
-  renderErrorDetails,
-  renderProgressDetail,
-  renderRhythmDetails,
-  renderRunNotes,
-  renderSecondaryFeedback,
-  renderTransitionDetails,
-  renderWordDetails,
-} from "./view/results.js";
+import { renderDebrief } from "./view/debrief.js";
 
 const elementIds = [
   "textDisplay", "typingInput", "testView", "resultsView", "restartButton", "clearHistoryButton",
   "textSelect", "currentTextLabel", "currentTextMeta",
   "speedValue", "accuracyValue", "consistencyValue", "scoreValue",
-  "resultPanel", "resultTitle",
-  "finalSpeed", "finalAccuracy", "finalScore", "grossSpeed",
-  "processAccuracy", "correctionSummary", "remainingErrors", "completionTime", "pauseSummary", "finalConsistency",
-  "runObservation", "runEvidence", "runRecommendation",
-  "secondaryFeedback", "secondaryFeedbackCount", "secondaryFeedbackList",
-  "runNoteList", "runNoteDescription", "resultPassage", "resultTextDisplay",
-  "passageLensHint", "passageLegend", "passageLegendLowest", "passageLegendHighest",
-  "allSpeedScope", "allAccuracyScope",
-  "rhythmDetailSummary", "rhythmDetailIntro", "errorDetailSummary", "errorDetailIntro", "errorCategoryList",
-  "transitionDetailSummary", "transitionDetailIntro", "transitionList",
-  "wordDetailSummary", "wordDetailIntro", "wordList",
-  "progressDetailSummary", "progressDetailIntro",
-  "heatmapRuns", "timerProgressFill",
+  "resultPanel", "resultTitle", "timerProgressFill",
+  "finalSpeed", "finalAccuracy", "speedRange", "accuracyPips", "deltaStat", "speedDelta",
+  "rhythmSection", "rhythmStrip", "rhythmEnd",
+  "findingBlock", "findingLabel", "findingVisual", "findingBars", "findingChips",
+  "drillBlock", "drillWords", "drillDuration", "startDrillButton", "repeatPieceButton",
+  "passageDetails", "resultTextDisplay",
 ];
-
-const canvasIds = ["rhythmChart", "lastRunHistogram", "progressChart", "tradeoffChart"];
 
 export function initTypingApp({
   document = globalThis.document,
@@ -56,50 +34,27 @@ export function initTypingApp({
   catalog = typingTexts,
 } = {}) {
   const elements = Object.fromEntries(elementIds.map((id) => [id, document.querySelector(`#${id}`)]));
-  canvasIds.forEach((id) => { elements[`${id}Canvas`] = document.querySelector(`#${id}`); });
   elements.timerProgress = document.querySelector(".timer-progress");
-
-  const resultAnalysisTabs = [...document.querySelectorAll("[data-result-tab]")];
-  const resultAnalysisPanels = [...document.querySelectorAll("[data-result-panel]")];
-  const chartScopeInputs = [...document.querySelectorAll('input[name="chartScope"]')];
-  const viewTabLists = [...document.querySelectorAll("[data-view-tabs]")];
-  const lensButtons = [...document.querySelectorAll("[data-lens]")];
 
   const textById = createTextIndex(catalog);
   const storage = createStorage(textById, window.localStorage);
 
-  let activeText = resolveText(catalog, textById, storage.settings.selectedText);
+  // The piece the typist chose, and the text actually being run — which is the
+  // piece most of the time, and a generated drill when one is started.
+  let selectedPiece = resolveText(catalog, textById, storage.settings.selectedText);
+  let activeText = selectedPiece;
   let words = getWords(activeText.body);
   let run = createRun();
   let secondsLeft = getRunLengthSeconds(activeText);
   let timerId = null;
   let runAnnotations = [];
-  let activeRunAnnotationId = null;
-  let lastRunSpeeds = [];
-  let lastRunHistogramBins = [];
-  let passageLens = "notes";
-  let activeHistogramBin = null;
+  let focusWordIndexes = [];
+  let pendingDrill = null;
   let focusRestartOnNextTab = false;
   let presentationUpdateScheduled = false;
 
   const afterLayout = (callback) => (window.requestAnimationFrame ?? ((fn) => fn()))(callback);
-  const getRunLabel = (record) => textById.get(record.textId)?.title || record.textId;
-  const getScopedRuns = () => storage.settings.chartScope === "all"
-    ? storage.runsStore.runs
-    : storage.runsStore.runs.filter((record) => record.textId === activeText.id);
-
-  // Hovering the histogram narrows the passage to that speed band, which only
-  // makes sense against this run's speeds — so it selects that lens too.
-  const charts = createCharts({
-    elements,
-    getRunLabel,
-    onHistogramHover: (binIndex) => {
-      if (!run.finished) return;
-      activeHistogramBin = binIndex;
-      setPassageLens(binIndex === null ? passageLens : "run-speed");
-    },
-    getChart: () => window.Chart,
-  });
+  const isDrill = () => Boolean(activeText.isDrill);
 
   function createRun() {
     return new TypingRun({ words, onStart: startTimer });
@@ -117,67 +72,6 @@ export function initTypingApp({
 
   function paintPrompt() {
     renderPrompt({ elements, document, words, run });
-  }
-
-  const lensHints = {
-    notes: "Select a note to find it in the passage.",
-    "run-speed": "Letter speed recorded during this run.",
-    "all-speed": "Average letter speed across every recorded run of this piece.",
-    "all-accuracy": "Letter accuracy across every recorded run of this piece.",
-  };
-
-  // One passage, four things it can encode. Each lens states its own scope so
-  // this-run and all-runs evidence are never mistaken for each other.
-  function paintPassage() {
-    lensButtons.forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.lens === passageLens)));
-    elements.passageLensHint.textContent = lensHints[passageLens];
-    elements.runNoteList.hidden = passageLens !== "notes" || runAnnotations.length === 0;
-    elements.runNoteDescription.hidden = passageLens !== "notes" || !activeRunAnnotationId;
-    elements.resultTextDisplay.classList.toggle("heatmap-passage", passageLens !== "notes");
-
-    if (passageLens === "notes") {
-      elements.passageLegend.hidden = true;
-      renderAnnotatedPassage({ elements, document, words, run, annotations: runAnnotations, activeAnnotationId: activeRunAnnotationId });
-      return;
-    }
-
-    const stats = storage.getTextStats(activeText);
-    const built = passageLens === "run-speed"
-      ? buildRunSpeedCells(lastRunSpeeds, lastRunHistogramBins, activeHistogramBin)
-      : passageLens === "all-speed"
-        ? buildAllSpeedCells(activeText, stats)
-        : buildAccuracyCells(activeText, stats);
-
-    paintHeatmapCells(elements.resultTextDisplay, document, built.cells);
-    elements.passageLegend.hidden = false;
-    elements.passageLegendLowest.textContent = built.lowest;
-    elements.passageLegendHighest.textContent = built.highest;
-  }
-
-  function setPassageLens(lens) {
-    passageLens = lens;
-    if (lens !== "run-speed") activeHistogramBin = null;
-    paintPassage();
-  }
-
-  // Hovering a note previews its word without committing the selection.
-  function previewAnnotation(wordIndex) {
-    elements.resultTextDisplay.querySelectorAll("[data-word-index]").forEach((element) => {
-      element.classList.toggle("run-annotation-preview", Number(element.dataset.wordIndex) === wordIndex);
-    });
-  }
-
-  function updateRunCount() {
-    const { runs } = storage.getTextStats(activeText);
-    elements.heatmapRuns.textContent = `${runs} run${runs === 1 ? "" : "s"}`;
-    const scope = runs === 1 ? "1 run" : `all ${runs} runs`;
-    elements.allSpeedScope.textContent = scope;
-    elements.allAccuracyScope.textContent = scope;
-  }
-
-  function paintTrendCharts() {
-    charts.renderProgress(getScopedRuns(), storage.settings.chartScope);
-    charts.renderTradeoff(getScopedRuns(), storage.settings.chartScope, activeText.title);
   }
 
   function updateStats() {
@@ -199,8 +93,7 @@ export function initTypingApp({
     elements.timerProgress.setAttribute("aria-valuenow", String(elapsedSeconds));
   }
 
-  // Two frames of delay keeps the prompt repaint off the keystroke path, so a
-  // fast typist never waits on stats rendering.
+  // Two frames of delay keeps the prompt repaint off the keystroke path.
   function schedulePresentationUpdate() {
     if (presentationUpdateScheduled || run.finished) return;
     presentationUpdateScheduled = true;
@@ -219,7 +112,9 @@ export function initTypingApp({
 
   function updateTextSummary() {
     elements.currentTextLabel.textContent = activeText.title;
-    elements.currentTextMeta.textContent = `${words.length} words · ${activeText.durationSeconds}s`;
+    elements.currentTextMeta.textContent = isDrill()
+      ? `practice · ${activeText.durationSeconds}s`
+      : `${words.length} words · ${activeText.durationSeconds}s`;
   }
 
   function populateTextPicker() {
@@ -238,45 +133,40 @@ export function initTypingApp({
     elements.textSelect.value = storage.settings.selectedText;
   }
 
-  function setResultAnalysisTab(tabId) {
-    resultAnalysisTabs.forEach((tab) => {
-      const active = tab.dataset.resultTab === tabId;
-      tab.setAttribute("aria-selected", String(active));
-      tab.tabIndex = active ? 0 : -1;
-    });
-    resultAnalysisPanels.forEach((panel) => { panel.hidden = panel.dataset.resultPanel !== tabId; });
-    if (tabId === "rhythm" && !elements.resultsView.hidden) afterLayout(() => charts.resize("rhythm"));
+  // Speed only means something against the speeds this typist has produced on
+  // this same piece, so drills and other texts are left out of the range.
+  function getSpeedRange(currentSpeed) {
+    const history = storage.runsStore.runs
+      .filter((record) => record.textId === selectedPiece.id)
+      .map((record) => record.wordsPerMinute)
+      .filter(Number.isFinite);
+    if (!history.length) return null;
+    const values = [...history, currentSpeed];
+    return {
+      min: Math.min(...values),
+      max: Math.max(...values),
+      previous: history.at(-1),
+      current: currentSpeed,
+    };
   }
 
-  function renderSessionDetails(summary) {
-    const timeline = getRhythmTimeline(run.events);
-    renderRhythmDetails({ elements, summary, timeline });
-    charts.renderRhythm(timeline, summary);
-    renderErrorDetails({ elements, document, summary });
+  function buildFinding(summary) {
+    const currentRecord = {
+      events: run.events,
+      words: run.completedWordAnalyses,
+      textId: activeText.id,
+      completedAt: new Date().toISOString(),
+    };
+    const records = [...storage.getStoredAnalysisRecords(), currentRecord];
 
-    const storedRuns = storage.analysisStore.texts[activeText.id]?.runs || [];
-    renderTransitionDetails({ elements, document, records: [...storedRuns, { events: run.events }] });
-    renderWordDetails({ elements, document, records: [...storedRuns, { events: run.events, words: run.completedWordAnalyses }] });
-
-    const progressRecords = storedRuns.map((record) => ({ ...record, textId: activeText.id }));
-    progressRecords.push({ completedAt: new Date().toISOString(), summary, textId: activeText.id });
-    renderProgressDetail({
-      elements,
-      records: progressRecords,
-      currentSummary: summary,
-      patternRecords: [...storage.getStoredAnalysisRecords(), { completedAt: new Date().toISOString(), events: run.events, textId: activeText.id }],
-      fluencyRecords: progressRecords,
+    return selectFinding({
+      summary,
+      words,
+      runEvents: run.events,
+      transitions: measureTransitions(records, { pauseThresholdMs: summary.pauseThresholdMs }),
+      wordRecords: records,
+      eventRecords: records,
     });
-  }
-
-  function renderLastRunResults(smoothedIntervals) {
-    lastRunSpeeds = [...activeText.body].map((character, index) => ({
-      char: character,
-      index,
-      speed: smoothedIntervals.has(index) ? Math.round(12000 / smoothedIntervals.get(index)) : null,
-    }));
-    lastRunHistogramBins = getSpeedHistogramBins(lastRunSpeeds);
-    charts.renderHistogram(lastRunHistogramBins);
   }
 
   function finishRun() {
@@ -289,98 +179,73 @@ export function initTypingApp({
 
     const metrics = run.getMetrics(getRunLengthSeconds(activeText) - secondsLeft);
     const consistency = getRunConsistency(run.keyIntervals);
-    const typingScore = getTypingScore(metrics.wordsPerMinute, metrics.accuracy, consistency);
     const summary = run.buildSummary({ storedRecords: storage.getStoredAnalysisRecords(), textId: activeText.id });
+    const finding = buildFinding(summary);
+    pendingDrill = buildDrill(finding, catalog);
 
     runAnnotations = deriveRunAnnotations({ summary, words, runEvents: run.events, completedWordAnalyses: run.completedWordAnalyses });
-    activeRunAnnotationId = null;
+    focusWordIndexes = finding.locations;
 
-    const bundles = getFeedbackBundles(summary);
-    const previousFeedback = storage.analysisStore.texts[activeText.id]?.runs?.at(-1)?.primaryFeedback;
-    const coaching = choosePrimaryFeedback(bundles, previousFeedback) || getCoaching(summary);
+    const range = getSpeedRange(summary.effectiveWordsPerMinute);
+    renderDebrief({
+      elements,
+      document,
+      data: {
+        speed: summary.effectiveWordsPerMinute,
+        accuracy: summary.finalAccuracy,
+        delta: range && Number.isFinite(range.previous) ? summary.effectiveWordsPerMinute - range.previous : null,
+        range,
+        rhythm: { events: run.events, thresholdMs: summary.pauseThresholdMs },
+        finding,
+        drill: pendingDrill,
+      },
+    });
 
     elements.resultPanel.hidden = false;
-    elements.finalSpeed.textContent = summary.effectiveWordsPerMinute;
-    elements.finalAccuracy.textContent = summary.finalAccuracy;
-    if (elements.finalScore) elements.finalScore.textContent = typingScore;
-    elements.grossSpeed.textContent = summary.grossWordsPerMinute;
-    elements.processAccuracy.textContent = summary.processAccuracy;
-    elements.correctionSummary.textContent = summary.correctedErrors;
-    elements.remainingErrors.textContent = summary.remainingErrors;
-    elements.completionTime.textContent = formatDuration(summary.completionMs);
-    elements.pauseSummary.textContent = summary.pauseCount
-      ? `${summary.pauseCount} · ${formatDuration(summary.pauseDurationMs)}`
-      : "None";
-    elements.finalConsistency.textContent = consistency;
-    elements.runObservation.previousElementSibling.textContent = coaching.title;
-    elements.runObservation.textContent = coaching.observation;
-    const evidence = formatBundleEvidence(coaching);
-    elements.runEvidence.hidden = !evidence;
-    elements.runEvidence.textContent = evidence;
-    elements.runRecommendation.textContent = `Practice: ${coaching.recommendation}`;
-    renderSecondaryFeedback({ elements, document, bundles, primaryBundle: coaching });
-
     elements.typingInput.disabled = true;
     elements.textSelect.disabled = false;
     elements.testView.hidden = true;
     elements.resultsView.hidden = false;
 
     paintPrompt();
-    elements.resultPassage.hidden = false;
-    // The passage needs this run's speeds before any lens can paint it.
-    renderLastRunResults(getSmoothedRunIntervals(run.intervals));
-    paintRunNotes();
-    setPassageLens("notes");
-    renderSessionDetails(summary);
-    commitRun(metrics, consistency, typingScore, getSmoothedRunIntervals(run.intervals), summary, coaching);
+    renderAnnotatedPassage({ elements, document, words, run, annotations: runAnnotations, focusWordIndexes });
+    commitRun(metrics, consistency, summary, finding);
     updateStats();
-    afterLayout(() => {
-      charts.resize("progress");
-      elements.resultTitle.focus();
-    });
+    afterLayout(() => elements.resultTitle.focus());
   }
 
-  function paintRunNotes() {
-    renderRunNotes({
-      elements,
-      document,
-      annotations: runAnnotations,
-      activeAnnotationId: activeRunAnnotationId,
-      onSelect: (id) => {
-        activeRunAnnotationId = activeRunAnnotationId === id ? null : id;
-        paintRunNotes();
-        setPassageLens("notes");
-        if (activeRunAnnotationId) elements.runNoteDescription.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
-      },
-      onPreview: previewAnnotation,
-    });
-  }
-
-  function commitRun(metrics, consistency, typingScore, smoothedIntervals, summary, primaryFeedback) {
-    const stats = storage.getTextStats(activeText);
-    run.promptAttempts.forEach((index) => {
-      const character = stats.characters[index];
-      if (!character) return;
-      character.attempts += 1;
-      if (run.mistakes.has(index)) character.mistakes += 1;
-    });
-    smoothedIntervals.forEach((intervalMs, index) => {
-      const character = stats.characters[index];
-      if (!character || intervalMs <= 0) return;
-      character.intervalSamples += 1;
-      character.totalIntervalMs += intervalMs;
-    });
-    stats.runs += 1;
-    storage.statsStore.texts[activeText.id] = stats;
-
-    const difficulty = getTextDifficulty(activeText);
+  function commitRun(metrics, consistency, summary, finding) {
     const completedAt = new Date().toISOString();
-    storage.runsStore.runs.push({
-      textId: activeText.id, completedAt,
-      wordsPerMinute: metrics.wordsPerMinute, accuracy: metrics.accuracy, consistency, typingScore,
-      difficulty,
-      approximateNormalizedWpm: Math.round(summary.effectiveWordsPerMinute / difficulty),
-    });
+
+    // A drill is practice, not a measurement of the piece, so it never enters
+    // the per-text history or the speed range. Its events are still recorded,
+    // which is what lets a later run test whether the drill actually helped.
+    if (!isDrill()) {
+      const stats = storage.getTextStats(activeText);
+      run.promptAttempts.forEach((index) => {
+        const character = stats.characters[index];
+        if (!character) return;
+        character.attempts += 1;
+        if (run.mistakes.has(index)) character.mistakes += 1;
+      });
+      getSmoothedRunIntervals(run.intervals).forEach((intervalMs, index) => {
+        const character = stats.characters[index];
+        if (!character || intervalMs <= 0) return;
+        character.intervalSamples += 1;
+        character.totalIntervalMs += intervalMs;
+      });
+      stats.runs += 1;
+      storage.statsStore.texts[activeText.id] = stats;
+
+      const difficulty = getTextDifficulty(activeText);
+      storage.runsStore.runs.push({
+        textId: activeText.id, completedAt,
+        wordsPerMinute: metrics.wordsPerMinute, accuracy: metrics.accuracy, consistency,
+        typingScore: getTypingScore(metrics.wordsPerMinute, metrics.accuracy, consistency),
+        difficulty,
+        approximateNormalizedWpm: Math.round(summary.effectiveWordsPerMinute / difficulty),
+      });
+    }
 
     const analysisText = storage.analysisStore.texts[activeText.id] || { runs: [] };
     const detailedRun = {
@@ -389,23 +254,26 @@ export function initTypingApp({
       events: run.events,
       words: run.completedWordAnalyses,
       derivationVersion: feedbackDerivationVersion,
-      primaryFeedback: primaryFeedback?.kind
-        ? { kind: primaryFeedback.kind, scope: primaryFeedback.scope, confidence: primaryFeedback.confidence, priority: primaryFeedback.priority, derivationVersion: feedbackDerivationVersion }
-        : null,
+      isDrill: isDrill(),
+      drillFocus: activeText.focus ?? null,
+      finding: finding.level === "none" ? null : { level: finding.level, subject: finding.subject, confidence: finding.confidence },
     };
     detailedRun.progressState = getProgressState([...analysisText.runs, detailedRun].map((record) => ({ ...record, textId: activeText.id })));
     analysisText.runs.push(detailedRun);
-    // Detailed event records stay bounded so local storage cannot grow without limit.
+    // Detailed event records stay bounded so local storage cannot grow forever.
     analysisText.runs = analysisText.runs.slice(-maxDetailedRunsPerText);
     storage.analysisStore.texts[activeText.id] = analysisText;
 
     storage.saveStores();
-    updateRunCount();
-    paintTrendCharts();
   }
 
-  function resetRun({ chooseRandom = storage.settings.selectedText === "random" } = {}) {
-    if (chooseRandom) activeText = resolveText(catalog, textById, "random");
+  function resetRun({ chooseRandom = false, text = null } = {}) {
+    if (text) {
+      activeText = text;
+    } else {
+      if (chooseRandom) selectedPiece = resolveText(catalog, textById, "random");
+      activeText = selectedPiece;
+    }
     words = getWords(activeText.body);
     run = createRun();
     secondsLeft = getRunLengthSeconds(activeText);
@@ -414,11 +282,7 @@ export function initTypingApp({
     window.clearInterval(timerId);
     timerId = null;
     runAnnotations = [];
-    activeRunAnnotationId = null;
-    lastRunSpeeds = [];
-    lastRunHistogramBins = [];
-    passageLens = "notes";
-    activeHistogramBin = null;
+    focusWordIndexes = [];
 
     elements.typingInput.value = "";
     elements.typingInput.disabled = false;
@@ -430,27 +294,12 @@ export function initTypingApp({
     elements.testView.hidden = false;
     elements.resultsView.hidden = true;
     elements.resultPanel.hidden = true;
-    elements.resultPassage.hidden = true;
     elements.resultTextDisplay.replaceChildren();
-    elements.passageLegend.hidden = true;
-    lensButtons.forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.lens === "notes")));
-    setResultAnalysisTab("rhythm");
-    elements.runNoteList.replaceChildren();
-    elements.runNoteDescription.hidden = true;
-    elements.runNoteDescription.textContent = "";
-    elements.secondaryFeedback.hidden = true;
-    elements.secondaryFeedback.open = false;
-    elements.secondaryFeedbackCount.textContent = "";
-    elements.secondaryFeedbackList.replaceChildren();
-    charts.destroyRhythm();
-    elements.errorCategoryList.replaceChildren();
-    elements.transitionList.replaceChildren();
-    elements.wordList.replaceChildren();
+    elements.passageDetails.open = false;
 
     updateTextSummary();
     updateTimerProgress();
     paintPrompt();
-    updateRunCount();
     elements.typingInput.focus();
   }
 
@@ -469,7 +318,7 @@ export function initTypingApp({
   // straight to Restart rather than walking the whole results view.
   document.addEventListener("keydown", (event) => {
     const activeControl = event.target?.closest?.(
-      'button:not(:disabled), a, select:not(:disabled), input:not(:disabled), textarea:not(:disabled), [role="tab"]',
+      'button:not(:disabled), a, select:not(:disabled), input:not(:disabled), textarea:not(:disabled), summary',
     );
     if (event.key === " " && !activeControl) {
       event.preventDefault();
@@ -489,58 +338,28 @@ export function initTypingApp({
   });
 
   elements.textDisplay.addEventListener("click", () => elements.typingInput.focus());
-  elements.restartButton.addEventListener("click", () => resetRun());
+  elements.restartButton.addEventListener("click", () => resetRun({ text: activeText }));
 
   elements.textSelect.addEventListener("change", () => {
     storage.settings.selectedText = elements.textSelect.value;
     storage.saveSettings();
-    activeText = resolveText(catalog, textById, storage.settings.selectedText);
-    resetRun({ chooseRandom: false });
+    selectedPiece = resolveText(catalog, textById, storage.settings.selectedText);
+    resetRun();
   });
 
-  chartScopeInputs.forEach((input) => input.addEventListener("change", () => {
-    if (!input.checked) return;
-    storage.settings.chartScope = input.value;
-    storage.saveSettings();
-    paintTrendCharts();
-  }));
-
-  viewTabLists.forEach((tabList) => {
-    const group = tabList.dataset.viewTabs;
-    const tabs = [...tabList.querySelectorAll('[role="tab"]')];
-    const panels = [...document.querySelectorAll(`[data-view-panel="${group}"]`)];
-
-    tabs.forEach((tab) => tab.addEventListener("click", () => {
-      tabs.forEach((candidate) => {
-        const isActive = candidate === tab;
-        candidate.setAttribute("aria-selected", String(isActive));
-        candidate.tabIndex = isActive ? 0 : -1;
-      });
-      panels.forEach((panel) => { panel.hidden = panel.dataset.viewId !== tab.dataset.viewTarget; });
-      afterLayout(() => charts.resize(tab.dataset.viewTarget));
-    }));
+  elements.startDrillButton.addEventListener("click", () => {
+    if (pendingDrill) resetRun({ text: pendingDrill });
   });
-
-  resultAnalysisTabs.forEach((tab) => tab.addEventListener("click", () => setResultAnalysisTab(tab.dataset.resultTab)));
-  lensButtons.forEach((button) => button.addEventListener("click", () => setPassageLens(button.dataset.lens)));
+  elements.repeatPieceButton.addEventListener("click", () => resetRun());
 
   elements.clearHistoryButton.addEventListener("click", () => {
     if (!window.confirm("Clear all typing history and character statistics? This cannot be undone.")) return;
     storage.clearAll();
-    updateRunCount();
-    paintTrendCharts();
-  });
-
-  elements.lastRunHistogramCanvas.addEventListener("mouseleave", () => {
-    activeHistogramBin = null;
-    if (run.finished) paintPassage();
   });
 
   storage.removeLegacyStorage();
   populateTextPicker();
-  chartScopeInputs.forEach((input) => { input.checked = input.value === storage.settings.chartScope; });
   resetRun({ chooseRandom: storage.settings.selectedText === "random" });
-  paintTrendCharts();
 
   // Driving the run with explicit timestamps is what makes timing-dependent
   // behaviour reproducible outside a real keyboard.
@@ -549,10 +368,9 @@ export function initTypingApp({
     handleCharacter: (character, timestamp = now(), modifiers = {}) => applyKeyResult(run.handleCharacter(character, timestamp, modifiers)),
     handleBackspace: (timestamp = now(), modifiers = {}) => applyKeyResult(run.handleBackspace(timestamp, modifiers)),
     handleSpace: (timestamp = now(), modifiers = {}) => applyKeyResult(run.handleSpace(timestamp, modifiers)),
-    setResultAnalysisTab,
-    setPassageLens,
     finishRun,
     resetRun,
     getActiveText: () => activeText,
+    getPendingDrill: () => pendingDrill,
   };
 }

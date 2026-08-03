@@ -11,7 +11,6 @@ import {
   getWordAggregate,
   getWordFragmentAggregate,
 } from "../src/aggregates.js";
-import { choosePrimaryFeedback, formatBundleEvidence, getCoaching, getFeedbackBundles } from "../src/feedback.js";
 import { getFluencyProgressState, getPatternProgressState, getProgressState } from "../src/progress.js";
 import { getWordErrorAnnotations } from "../src/annotations.js";
 import { getFluencyMetrics } from "../src/metrics.js";
@@ -30,12 +29,6 @@ test("transition evidence remains learning until it reaches the coverage thresho
   assert.deepEqual({ samples: supported.samples, confidence: supported.confidence }, { samples: 12, confidence: "supported" });
 });
 
-test("a supported high-impact transition becomes a focused practice recommendation", () => {
-  const coaching = getCoaching({ pauseCount: 0, correctedErrors: 0, remainingErrors: 0, transitions: [{ pair: "tr", samples: 18, slowdownPercent: 31, confidence: "supported" }] });
-  assert.match(coaching.observation, /“tr”.*31% slower/);
-  assert.match(coaching.recommendation, /“tr”/);
-});
-
 test("transition evidence keeps its cross-text coverage with the aggregate", () => {
   const events = [
     { type: "character", key: "t", expectedCharacter: "t", wordIndex: 0, bufferOffset: 0, timestampMs: 0 },
@@ -43,94 +36,13 @@ test("transition evidence keeps its cross-text coverage with the aggregate", () 
   ];
   const transition = getTransitionAggregate([{ textId: "first", events }, { textId: "second", events }])[0];
   assert.equal(transition.sourceTextCount, 2);
-  assert.equal(
-    formatBundleEvidence({ kind: "transition", scope: "tr", sampleCount: transition.samples, confidence: "supported", sourceTextCount: transition.sourceTextCount }),
-    "Evidence: 2 examples for “tr” across 2 texts · supported pattern",
-  );
+  assert.equal(transition.samples, 2);
 });
 
 test("trigram evidence uses contiguous correct letters and cross-text coverage", () => {
   const events = ["s", "t", "r"].map((key, index) => ({ type: "character", key, expectedCharacter: key, wordIndex: 0, bufferOffset: index, timestampMs: index * 150 }));
   const trigram = getTransitionAggregate([{ textId: "first", events }, { textId: "second", events }], 3)[0];
   assert.deepEqual({ pair: trigram.pair, samples: trigram.samples, sourceTextCount: trigram.sourceTextCount }, { pair: "str", samples: 2, sourceTextCount: 2 });
-  const bundle = getFeedbackBundles({ pauseCount: 0, correctedErrors: 0, remainingErrors: 0, transitions: [], trigrams: [{ ...trigram, confidence: "supported", slowdownPercent: 30 }] })[0];
-  assert.equal(bundle.kind, "trigram");
-  assert.match(bundle.recommendation, /“str”/);
-});
-
-test("feedback bundles rank their evidence and retain the supporting contract", () => {
-  const bundles = getFeedbackBundles({ pauseCount: 2, pauseThresholdMs: 700, correctedErrors: 4, remainingErrors: 2, transitions: [] });
-  assert.equal(bundles[0].kind, "corrections");
-  assert.deepEqual(
-    Object.keys(bundles[0]).filter((key) => ["scope", "sampleCount", "confidence", "impact", "stability", "actionability"].includes(key)).sort(),
-    ["actionability", "confidence", "impact", "sampleCount", "scope", "stability"],
-  );
-  assert.deepEqual(Object.keys(bundles[0].evidence).sort(), ["confidence", "sampleCount", "scope", "sourceTextCount"]);
-  assert.equal(bundles[0].interpretation, bundles[0].title);
-  assert.equal(bundles[0].practice, bundles[0].recommendation);
-});
-
-test("no eligible pattern produces a neutral collect-more-evidence story", () => {
-  const coaching = getCoaching({ finalAccuracy: 100, correctedErrors: 0, pauseCount: 0, remainingErrors: 0, transitions: [] });
-  assert.match(coaching.title, /Collect another/);
-  assert.match(coaching.observation, /no repeated pattern/);
-});
-
-test("a common supported pattern beats a rarer issue, and ranking is deterministic", () => {
-  const summary = {
-    pauseCount: 0, correctedErrors: 0, remainingErrors: 4,
-    transitions: [{ pair: "tr", samples: 18, slowdownPercent: 31, confidence: "supported", sourceTextCount: 2 }],
-    characters: [], wordPatterns: [], prefixPatterns: [], suffixPatterns: [],
-  };
-  const first = getFeedbackBundles(summary);
-  assert.equal(first[0].kind, "transition");
-  assert.deepEqual(getFeedbackBundles(summary), first);
-});
-
-test("a lower-actionability word pattern does not displace a similarly impactful key pattern", () => {
-  const bundles = getFeedbackBundles({
-    pauseCount: 0, correctedErrors: 0, remainingErrors: 0, transitions: [], prefixPatterns: [], suffixPatterns: [],
-    characters: [{ character: "a", attempts: 18, correct: 13, accuracy: 72, confidence: "supported", sourceTextCount: 2 }],
-    wordPatterns: [{ word: "steady", samples: 6, finalErrors: 5, confidence: "supported", sourceTextCount: 2 }],
-  });
-  assert.equal(bundles[0].kind, "character");
-});
-
-test("a previous supported recommendation remains primary when the new evidence is close", () => {
-  const bundles = [
-    { kind: "character", scope: "a", confidence: "supported", priority: 100 },
-    { kind: "transition", scope: "tr", confidence: "supported", priority: 90 },
-  ];
-  assert.equal(choosePrimaryFeedback(bundles, { kind: "transition", scope: "tr", confidence: "supported" }).kind, "transition");
-  assert.equal(choosePrimaryFeedback(bundles, { kind: "transition", scope: "tr", confidence: "supported", priority: 40 }).kind, "transition");
-  assert.equal(choosePrimaryFeedback([{ ...bundles[0] }, { ...bundles[1], priority: 80 }], { kind: "transition", scope: "tr", confidence: "supported" }).kind, "character");
-});
-
-test("coaching evidence states the scope and confidence behind a bundle", () => {
-  assert.equal(formatBundleEvidence({ kind: "transition", scope: "tr", sampleCount: 18, confidence: "supported" }), "Evidence: 18 examples for “tr” · supported pattern");
-  assert.equal(formatBundleEvidence({ kind: "character", scope: "a", sampleCount: 16, confidence: "supported", sourceTextCount: 2 }), "Evidence: 16 examples for “a” across 2 texts · supported pattern");
-  assert.equal(formatBundleEvidence({ kind: "pauses", scope: "run", sampleCount: 2, confidence: "run-only" }), "Evidence: 2 examples across the run · this run");
-});
-
-test("a supported weak character across texts becomes focused practice feedback", () => {
-  const bundles = getFeedbackBundles({
-    pauseCount: 0, correctedErrors: 0, remainingErrors: 0, transitions: [],
-    characters: [{ character: "a", attempts: 16, correct: 12, accuracy: 75, commonSubstitution: "s", confidence: "supported", sourceTextCount: 2 }],
-  });
-  assert.equal(bundles[0].kind, "character");
-  assert.match(bundles[0].observation, /across 16 recorded attempts.*“s”/);
-  assert.match(bundles[0].recommendation, /“a”/);
-});
-
-test("repeated committed word errors become focused practice feedback", () => {
-  const bundles = getFeedbackBundles({
-    pauseCount: 0, correctedErrors: 0, remainingErrors: 0, transitions: [], characters: [],
-    wordPatterns: [{ word: "steady", samples: 5, finalErrors: 3, confidence: "supported", sourceTextCount: 2 }],
-  });
-  assert.equal(bundles[0].kind, "word");
-  assert.match(bundles[0].observation, /3 committed errors across 5 recorded attempts/);
-  assert.match(bundles[0].recommendation, /“steady”/);
-  assert.equal(formatBundleEvidence(bundles[0]), "Evidence: 5 examples for “steady” across 2 texts · supported pattern");
 });
 
 test("supported prefix and suffix patterns are described as cautious word-pattern evidence", () => {
@@ -140,20 +52,6 @@ test("supported prefix and suffix patterns are described as cautious word-patter
     { fragment: pattern.fragment, samples: pattern.samples, finalErrors: pattern.finalErrors, sourceTextCount: pattern.sourceTextCount, confidence: pattern.confidence },
     { fragment: "ady", samples: 4, finalErrors: 4, sourceTextCount: 2, confidence: "supported" },
   );
-  const bundle = getFeedbackBundles({ pauseCount: 0, correctedErrors: 0, remainingErrors: 0, transitions: [], characters: [], wordPatterns: [], prefixPatterns: [], suffixPatterns: [pattern] })[0];
-  assert.equal(bundle.kind, "suffix");
-  assert.match(bundle.observation, /word-pattern signal, not proof/);
-  assert.match(bundle.recommendation, /ending “ady”/);
-});
-
-test("supported Shift timing produces a cautious technique hypothesis", () => {
-  const bundles = getFeedbackBundles({
-    pauseCount: 0, correctedErrors: 0, remainingErrors: 0, transitions: [], characters: [], wordPatterns: [],
-    shift: { supported: true, slowdownPercent: 42, shiftSamples: 12, sourceTextCount: 2 },
-  });
-  assert.equal(bundles[0].kind, "shift");
-  assert.match(bundles[0].observation, /may be a timing pattern rather than a technique problem/);
-  assert.equal(formatBundleEvidence(bundles[0]), "Evidence: 12 examples for “capital letters” across 2 texts · supported pattern");
 });
 
 test("character evidence tracks process accuracy, substitutions, and confidence", () => {

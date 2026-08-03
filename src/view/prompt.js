@@ -82,8 +82,14 @@ export function renderPrompt({ elements, document, words, run }) {
   );
 }
 
-export function renderAnnotatedPassage({ elements, document, words, run, annotations, activeAnnotationId }) {
+// The result passage marks two things: what was left wrong, and where the
+// finding is. Nothing else is coloured, so the text stays readable.
+export function renderAnnotatedPassage({ elements, document, words, run, annotations, focusWordIndexes = [] }) {
   elements.resultTextDisplay.replaceChildren(
-    buildPassage({ document, words, run, annotations, activeAnnotationId, showCaret: false }),
+    buildPassage({ document, words, run, annotations, activeAnnotationId: null, showCaret: false }),
   );
+  const focus = new Set(focusWordIndexes);
+  elements.resultTextDisplay.querySelectorAll("[data-word-index]").forEach((element) => {
+    if (focus.has(Number(element.dataset.wordIndex))) element.classList.add("run-annotation-active");
+  });
 }
