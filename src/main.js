@@ -2,14 +2,14 @@
 // view state, and the event handlers; everything it renders or calculates lives
 // in a module that has no opinion about the DOM.
 
-import { feedbackDerivationVersion, maxDetailedRunsPerText } from "./config.js";
+import { feedbackDerivationVersion, maxDetailedRunsPerText, pauseFloorMs } from "./config.js";
 import { typingTexts } from "./texts.js";
 import { createTextIndex, getRunLengthSeconds, getTextDifficulty, getWords, resolveText } from "./text-model.js";
 import { createStorage } from "./storage.js";
 import { TypingRun, now } from "./run-engine.js";
 import { getRunConsistency, getSmoothedRunIntervals, getTypingScore } from "./metrics.js";
 import { deriveRunAnnotations } from "./annotations.js";
-import { getRunPairs, measureTransitions } from "./transitions.js";
+import { getRunPairs, measureTransitions, summariseRunTransitions } from "./transitions.js";
 import { selectFinding } from "./finding.js";
 import { buildDrill } from "./drills.js";
 import { getProgressState } from "./progress.js";
@@ -23,7 +23,7 @@ const elementIds = [
   "resultPanel", "resultTitle", "timerProgressFill",
   "finalSpeed", "finalAccuracy", "speedRange", "accuracyPips", "deltaStat", "speedDelta",
   "rhythmSection", "rhythmStrip", "rhythmEnd",
-  "findingBlock", "findingLabel", "findingVisual", "findingBars", "findingChips",
+  "findingBlock", "findingLabel", "findingVisual", "findingBars", "findingTrend", "findingChips",
   "drillBlock", "drillWords", "drillDuration", "startDrillButton", "repeatPieceButton",
   "passageDetails", "resultTextDisplay",
 ];
@@ -50,6 +50,7 @@ export function initTypingApp({
   let runAnnotations = [];
   let focusWordIndexes = [];
   let pendingDrill = null;
+  let currentTransitions = null;
   let focusRestartOnNextTab = false;
   let presentationUpdateScheduled = false;
 
@@ -150,14 +151,30 @@ export function initTypingApp({
     };
   }
 
-  function buildFinding(summary) {
+  // The detailed store is trimmed, so its records are folded into the transition
+  // history as they arrive. Doing it by key makes the fold idempotent and lets
+  // an existing typist's history appear the first time this runs.
+  function syncTransitionHistory() {
+    const known = new Set(storage.transitionsStore.runs.map((entry) => `${entry.textId}|${entry.completedAt}`));
+    const missing = storage.getStoredAnalysisRecords()
+      .filter((record) => !known.has(`${record.textId}|${record.completedAt}`))
+      .map((record) => summariseRunTransitions(record, { pauseThresholdMs: record.summary?.pauseThresholdMs ?? pauseFloorMs }));
+    if (!missing.length) return;
+    storage.transitionsStore.runs = [...storage.transitionsStore.runs, ...missing]
+      .sort((left, right) => String(left.completedAt).localeCompare(String(right.completedAt)));
+    storage.saveStores();
+  }
+
+  function buildFinding(summary, completedAt) {
     const currentRecord = {
       events: run.events,
       words: run.completedWordAnalyses,
       textId: activeText.id,
-      completedAt: new Date().toISOString(),
+      isDrill: isDrill(),
+      completedAt,
     };
     const records = [...storage.getStoredAnalysisRecords(), currentRecord];
+    currentTransitions = summariseRunTransitions(currentRecord, { pauseThresholdMs: summary.pauseThresholdMs });
 
     return selectFinding({
       summary,
@@ -167,6 +184,10 @@ export function initTypingApp({
       // A finding leads the debrief only if it happened in the run being
       // debriefed; history supports the claim but cannot be the whole of it.
       runPairs: getRunPairs(currentRecord, { pauseThresholdMs: summary.pauseThresholdMs }),
+      // Confidence is re-derived from the recent detailed records; the picture
+      // of progress reaches back over every run ever measured.
+      transitionHistory: [...storage.transitionsStore.runs, currentTransitions],
+      currentTransitions,
       wordRecords: records,
       eventRecords: records,
     });
@@ -180,10 +201,13 @@ export function initTypingApp({
     window.clearInterval(timerId);
     timerId = null;
 
+    // One timestamp for the whole run, so the record and its transition summary
+    // are recognisably the same run and can never be folded in twice.
+    const completedAt = new Date().toISOString();
     const metrics = run.getMetrics(getRunLengthSeconds(activeText) - secondsLeft);
     const consistency = getRunConsistency(run.keyIntervals);
     const summary = run.buildSummary({ storedRecords: storage.getStoredAnalysisRecords(), textId: activeText.id });
-    const finding = buildFinding(summary);
+    const finding = buildFinding(summary, completedAt);
     pendingDrill = buildDrill(finding, catalog);
 
     runAnnotations = deriveRunAnnotations({ summary, words, runEvents: run.events, completedWordAnalyses: run.completedWordAnalyses });
@@ -212,14 +236,12 @@ export function initTypingApp({
 
     paintPrompt();
     renderAnnotatedPassage({ elements, document, words, run, annotations: runAnnotations, focusWordIndexes });
-    commitRun(metrics, consistency, summary, finding);
+    commitRun(metrics, consistency, summary, finding, completedAt);
     updateStats();
     afterLayout(() => elements.resultTitle.focus());
   }
 
-  function commitRun(metrics, consistency, summary, finding) {
-    const completedAt = new Date().toISOString();
-
+  function commitRun(metrics, consistency, summary, finding, completedAt) {
     // A drill is practice, not a measurement of the piece, so it never enters
     // the per-text history or the speed range. Its events are still recorded,
     // which is what lets a later run test whether the drill actually helped.
@@ -266,6 +288,10 @@ export function initTypingApp({
     // Detailed event records stay bounded so local storage cannot grow forever.
     analysisText.runs = analysisText.runs.slice(-maxDetailedRunsPerText);
     storage.analysisStore.texts[activeText.id] = analysisText;
+
+    // The one record that outlives the trim, so a movement's history can go
+    // back further than the events it was derived from.
+    if (currentTransitions) storage.transitionsStore.runs.push(currentTransitions);
 
     storage.saveStores();
   }
@@ -361,6 +387,7 @@ export function initTypingApp({
   });
 
   storage.removeLegacyStorage();
+  syncTransitionHistory();
   populateTextPicker();
   resetRun({ chooseRandom: storage.settings.selectedText === "random" });
 

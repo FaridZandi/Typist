@@ -151,8 +151,8 @@ function renderRhythm(elements, document, rhythm) {
   });
 }
 
-function bar(document, { label, mono, widthPercent, value, slow }) {
-  const row = el(document, "div", `bar-row${slow ? " slow" : ""}`);
+function bar(document, { label, mono, widthPercent, value, tone }) {
+  const row = el(document, "div", `bar-row${tone ? ` ${tone}` : ""}`);
   const who = el(document, "span", "who");
   if (mono) who.append(el(document, "b", null, label));
   else who.textContent = label;
@@ -186,6 +186,8 @@ function renderFinding(elements, document, finding) {
   elements.findingLabel.textContent = FINDING_LABELS[finding.level];
   elements.findingVisual.replaceChildren();
   elements.findingBars.replaceChildren();
+  elements.findingTrend.replaceChildren();
+  elements.findingTrend.hidden = true;
   elements.findingChips.replaceChildren();
   elements.findingBlock.hidden = finding.level === "none";
   if (finding.level === "none") return;
@@ -195,28 +197,39 @@ function renderFinding(elements, document, finding) {
   if (finding.level === "transition") {
     const [from, to] = finding.subject.value;
     elements.findingVisual.append(renderKeyboard(document, { lit: [from, to], hop: [from, to] }));
-    const worst = Math.max(measure.valueMs, measure.baselineMs || 0) || 1;
+    const worst = Math.max(measure.valueMs, measure.baselineMs || 0, measure.runValueMs || 0) || 1;
     elements.findingBars.append(
-      bar(document, { label: `${from} → ${to}`, mono: true, widthPercent: (measure.valueMs / worst) * 100, value: `${measure.valueMs}ms`, slow: true }),
+      bar(document, { label: `${from} → ${to}`, mono: true, widthPercent: (measure.valueMs / worst) * 100, value: `${measure.valueMs}ms`, tone: "slow" }),
       bar(document, { label: "same words", widthPercent: ((measure.baselineMs || 0) / worst) * 100, value: `${measure.baselineMs}ms` }),
     );
+    // The two bars above are everything ever measured; this one is the run the
+    // typist just finished, which is the only part they can still remember.
+    if (Number.isFinite(measure.runValueMs)) {
+      elements.findingBars.append(bar(document, {
+        label: "this run",
+        widthPercent: (measure.runValueMs / worst) * 100,
+        value: `${measure.runValueMs}ms`,
+        tone: "now",
+      }));
+    }
+    renderTrend(elements, document, finding);
   } else if (finding.level === "character") {
     elements.findingVisual.append(renderKeyboard(document, { lit: [finding.subject.value] }));
     elements.findingBars.append(
-      bar(document, { label: finding.subject.value, mono: true, widthPercent: measure.accuracy, value: `${measure.accuracy}%`, slow: true }),
+      bar(document, { label: finding.subject.value, mono: true, widthPercent: measure.accuracy, value: `${measure.accuracy}%`, tone: "slow" }),
       bar(document, { label: "correct", widthPercent: 100, value: `${measure.attempts - measure.wrong}/${measure.attempts}` }),
     );
   } else if (finding.level === "word") {
     elements.findingVisual.append(el(document, "div", "subject-word", finding.subject.value));
     const worst = Math.max(measure.valueMs, measure.baselineMs || 0) || 1;
     elements.findingBars.append(
-      bar(document, { label: "this word", widthPercent: (measure.valueMs / worst) * 100, value: `${measure.valueMs}ms`, slow: true }),
+      bar(document, { label: "this word", widthPercent: (measure.valueMs / worst) * 100, value: `${measure.valueMs}ms`, tone: "slow" }),
       bar(document, { label: "your words", widthPercent: ((measure.baselineMs || 0) / worst) * 100, value: `${measure.baselineMs}ms` }),
     );
   } else if (finding.level === "pause") {
     elements.findingVisual.append(el(document, "div", "subject-count", String(measure.count)));
     elements.findingBars.append(
-      bar(document, { label: "longest", widthPercent: 100, value: `${Math.round(measure.longestMs / 100) / 10}s`, slow: true }),
+      bar(document, { label: "longest", widthPercent: 100, value: `${Math.round(measure.longestMs / 100) / 10}s`, tone: "slow" }),
       bar(document, { label: "before a word", widthPercent: (measure.beforeWords / measure.count) * 100, value: `${measure.beforeWords}/${measure.count}` }),
     );
   } else if (finding.level === "pace") {
@@ -224,12 +237,12 @@ function renderFinding(elements, document, finding) {
     const worst = Math.max(measure.earlyMs, measure.lateMs) || 1;
     elements.findingBars.append(
       bar(document, { label: "first third", widthPercent: (measure.earlyMs / worst) * 100, value: `${measure.earlyMs}ms` }),
-      bar(document, { label: "final third", widthPercent: (measure.lateMs / worst) * 100, value: `${measure.lateMs}ms`, slow: measure.lateMs > measure.earlyMs }),
+      bar(document, { label: "final third", widthPercent: (measure.lateMs / worst) * 100, value: `${measure.lateMs}ms`, tone: measure.lateMs > measure.earlyMs ? "slow" : null }),
     );
   } else {
     elements.findingVisual.append(el(document, "div", "subject-count", String(measure.errorsLeft)));
     elements.findingBars.append(
-      bar(document, { label: "left wrong", widthPercent: 100, value: String(measure.errorsLeft), slow: measure.errorsLeft > 0 }),
+      bar(document, { label: "left wrong", widthPercent: 100, value: String(measure.errorsLeft), tone: measure.errorsLeft > 0 ? "slow" : null }),
       bar(document, { label: "corrected", widthPercent: 60, value: String(measure.corrected) }),
     );
   }
@@ -245,6 +258,136 @@ function renderFinding(elements, document, finding) {
     if (RULED_OUT_LABELS[rival]) elements.findingChips.append(chip(document, "ok", RULED_OUT_LABELS[rival]));
   });
   elements.findingChips.append(chip(document, "evidence", evidenceText(finding)));
+}
+
+// The history behind the median. A single number cannot say whether a movement
+// is getting better, and an average of everything hides the run in front of the
+// typist — so every occurrence is drawn, run by run, against the other
+// movements in its own words.
+const TREND = { width: 560, height: 132, left: 46, right: 14, top: 14, bottom: 26 };
+// The column width a mark is drawn at full size in. Below it every mark shrinks
+// together, so a long history crowds rather than overlapping into a smear.
+const TREND_COMFORTABLE_COLUMN = 34;
+
+function trendPath(document, points, className) {
+  if (points.length < 2) return null;
+  return svg(document, "polyline", {
+    class: className,
+    points: points.map(({ x, y }) => `${x},${y}`).join(" "),
+  });
+}
+
+function renderTrend(elements, document, finding) {
+  elements.findingTrend.replaceChildren();
+  // Every run held, not a recent window: the point of the picture is to see how
+  // far back the movement goes and whether it has moved since.
+  const entries = finding.history?.entries ?? [];
+  // One run is no history: the bars already say everything a single point could.
+  if (entries.length < 2) {
+    elements.findingTrend.hidden = true;
+    return;
+  }
+  elements.findingTrend.hidden = false;
+
+  const { width, height, left, right, top, bottom } = TREND;
+  const plotWidth = width - left - right;
+  const plotHeight = height - top - bottom;
+  const maxValue = Math.max(...entries.flatMap((entry) => [...entry.samples, entry.baselineMs ?? 0]), 1);
+  const columnWidth = plotWidth / entries.length;
+  const x = (index) => left + (index + 0.5) * columnWidth;
+  // Zero-based, like the bars, so a difference on screen is a difference in ms.
+  const y = (value) => top + plotHeight - (value / maxValue) * plotHeight;
+  const at = (key) => entries.flatMap((entry, index) => (Number.isFinite(entry[key]) ? [{ x: x(index), y: y(entry[key]) }] : []));
+  const unit = Math.max(0.4, Math.min(1, columnWidth / TREND_COMFORTABLE_COLUMN));
+
+  const [from, to] = finding.subject.value;
+  const root = svg(document, "svg", {
+    class: "trend-plot",
+    viewBox: `0 0 ${width} ${height}`,
+    role: "img",
+    "aria-label": `${from} to ${to} across ${entries.length} runs`,
+  });
+
+  const current = entries.findIndex((entry) => entry.current);
+  if (current >= 0) {
+    root.append(svg(document, "rect", {
+      class: "now-band", x: left + current * columnWidth, y: top, width: columnWidth, height: plotHeight, rx: 4,
+    }));
+  }
+
+  root.append(svg(document, "line", { class: "axis", x1: left, y1: y(0), x2: width - right, y2: y(0) }));
+
+  const baselineLine = trendPath(document, at("baselineMs"), "line base");
+  if (baselineLine) root.append(baselineLine);
+  const medianLine = trendPath(document, at("medianMs"), "line pair");
+  if (medianLine) root.append(medianLine);
+
+  entries.forEach((entry, index) => {
+    // Every occurrence, not just its median — the spread is the reason a run
+    // with one bad hop does not look like a run that was slow throughout.
+    if (entry.samples.length > 1) {
+      root.append(svg(document, "line", {
+        class: "spread",
+        "stroke-width": (5 * unit).toFixed(2),
+        x1: x(index), y1: y(Math.min(...entry.samples)), x2: x(index), y2: y(Math.max(...entry.samples)),
+      }));
+    }
+    entry.samples.forEach((intervalMs) => {
+      root.append(svg(document, "circle", {
+        class: `dot${entry.current ? " now" : ""}`, cx: x(index), cy: y(intervalMs), r: (2.4 * unit).toFixed(2),
+      }));
+    });
+    if (Number.isFinite(entry.baselineMs)) {
+      const reach = Math.min(6, columnWidth * 0.4);
+      root.append(svg(document, "line", {
+        class: "base-mark", "stroke-width": (2 * unit).toFixed(2),
+        x1: x(index) - reach, y1: y(entry.baselineMs), x2: x(index) + reach, y2: y(entry.baselineMs),
+      }));
+    }
+    if (Number.isFinite(entry.medianMs)) {
+      root.append(svg(document, "circle", {
+        class: `median${entry.current ? " now" : ""}`,
+        cx: x(index), cy: y(entry.medianMs), r: (entry.current ? 5 * unit + 1 : 3.4 * unit).toFixed(2),
+      }));
+    }
+    // A filled tick means the run was on the piece just typed; a hollow one
+    // means the evidence came from somewhere else, including a drill.
+    const onThisPiece = entry.textId === finding.history.currentTextId;
+    root.append(svg(document, "circle", {
+      class: `piece${onThisPiece ? " same" : ""}`, cx: x(index), cy: height - bottom + 9,
+      // Floored, because a hollow tick that shrinks past its own stroke stops
+      // being distinguishable from a filled one.
+      r: Math.max(2.2, 2.6 * unit).toFixed(2),
+    }));
+  });
+
+  const label = (text, attributes) => {
+    const node = svg(document, "text", { class: "trend-label", ...attributes });
+    node.textContent = text;
+    return node;
+  };
+  root.append(
+    label(`${maxValue}ms`, { x: left - 8, y: top + 4, "text-anchor": "end" }),
+    label("0", { x: left - 8, y: y(0) + 4, "text-anchor": "end" }),
+    label("oldest", { x: left, y: height - 2 }),
+    label("now", { x: width - right, y: height - 2, "text-anchor": "end" }),
+  );
+
+  const legend = el(document, "div", "legend-row");
+  legend.append(
+    legendItem(document, "sw-pair", `${from} → ${to}`),
+    legendItem(document, "sw-base", "same words"),
+  );
+  if (new Set(entries.map((entry) => entry.textId)).size > 1) {
+    legend.append(legendItem(document, "sw-piece", "this piece"));
+  }
+  elements.findingTrend.append(root, legend);
+}
+
+function legendItem(document, swatch, text) {
+  const item = el(document, "span");
+  item.append(el(document, "i", `sw ${swatch}`), document.createTextNode(text));
+  return item;
 }
 
 function evidenceText(finding) {

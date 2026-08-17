@@ -6,7 +6,7 @@ import test from "node:test";
 
 import { selectFinding } from "../src/finding.js";
 import { buildDrill, getCatalogVocabulary } from "../src/drills.js";
-import { measureTransitions } from "../src/transitions.js";
+import { measureTransitions, summariseRunTransitions } from "../src/transitions.js";
 import { getWords } from "../src/text-model.js";
 
 const catalog = [
@@ -64,6 +64,38 @@ test("a supported movement takes the top rung and carries what it ruled out", ()
   assert.equal(finding.measure.motorClass, "same-hand-reach");
   assert.ok(finding.ruledOut.includes("single-word"));
   assert.ok(finding.locations.length > 0, "the finding must be locatable in the passage");
+});
+
+test("a movement finding carries the run it is shown beside, not only its average", () => {
+  // Four slow runs, then a fifth where the movement went noticeably better.
+  const records = [...slowTransitionRecords(), buildRun({
+    completedAt: "2026-01-05T00:00:00.000Z",
+    words: [
+      { text: "petrol", base: 150, intervals: { tr: 190 } },
+      { text: "nitrate", base: 150, intervals: { tr: 190 } },
+      { text: "extra", base: 150, intervals: { tr: 190 } },
+      { text: "citrus", base: 150, intervals: { tr: 190 } },
+    ],
+  })];
+  const currentRecord = records.at(-1);
+  const transitionHistory = records.map((record) => summariseRunTransitions(record, { pauseThresholdMs: 700 }));
+  const finding = selectFinding({
+    summary: quietSummary,
+    words: getWords("petrol nitrate extra citrus"),
+    runEvents: currentRecord.events,
+    transitions: measureTransitions(records, { pauseThresholdMs: 700 }),
+    transitionHistory,
+    currentTransitions: transitionHistory.at(-1),
+    wordRecords: records,
+    eventRecords: records,
+  });
+
+  assert.equal(finding.measure.valueMs, 280, "the headline stays the all-time median");
+  assert.equal(finding.measure.runValueMs, 190, "the run just finished is reported separately");
+  assert.equal(finding.measure.runSamples, 4);
+  assert.equal(finding.history.entries.length, 5);
+  assert.equal(finding.history.entries.at(-1).current, true);
+  assert.deepEqual(finding.history.entries.map((entry) => entry.medianMs), [280, 280, 280, 280, 190]);
 });
 
 test("with no supported pattern the ladder falls to what this run alone shows", () => {

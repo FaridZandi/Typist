@@ -65,7 +65,16 @@ at:
 - **rhythm** as one mark per keystroke spaced by real time, so steady typing
   looks like a comb and a hesitation is a gap you find by looking;
 - **the finding** drawn on the Dvorak keyboard when it is a movement, with
-  comparison bars against the same class of movement;
+  comparison bars against the words it sat in — and against the run just typed,
+  since an all-time median says nothing about the run the typist can still
+  remember;
+- **the history behind that median** as one column per run ever recorded,
+  oldest to newest: every occurrence of the movement as a dot, the run's median
+  joined into a line, and the other movements in the same words as a second line
+  beneath it. The gap between the two lines is the finding, so a movement that
+  is being fixed is a gap closing. The run just finished is highlighted, and a
+  filled tick under a column means that run was on the same piece — a hollow one
+  means the evidence came from elsewhere, including a drill;
 - **the fix** as drill words that can be started, not a sentence describing an
   exercise the app cannot provide.
 
@@ -113,7 +122,15 @@ The prompt is the typing surface. A small focused input captures keyboard and IM
 
 Consistency measures the variation between consecutive captured key presses, including mistakes, extra characters, backspaces, and spaces.
 
-Typing history is stored locally in versioned `localStorage` records. Character statistics are keyed by text ID, while completed runs retain their resolved text ID even when the Random selector was used. A bounded v3 analysis record retains detailed event data for the most recent 12 runs of each text; clearing typing history clears both the aggregate and detailed records.
+Typing history is stored locally in versioned `localStorage` records. Character statistics are keyed by text ID, while completed runs retain their resolved text ID even when the Random selector was used. A bounded v3 analysis record retains detailed event data for the most recent 12 runs of each text; clearing typing history clears every record.
+
+Beside it sits a v1 transition record: for each run, the intervals of every
+movement and the median of the words they sat in, and nothing else. It is a few
+hundred bytes a run rather than tens of kilobytes, so it is never trimmed — the
+confidence machinery re-derives from the detailed events, but the picture of
+progress has to reach back further than they survive. Detailed records are
+folded into it by run key, which makes the fold idempotent and means an existing
+history appears the first time the store is written.
 
 ## Reaction Test
 

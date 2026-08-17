@@ -91,6 +91,136 @@ test("the finding names its own level and shows what the evidence ruled out", as
   }
 });
 
+// A stored run of `words`, timed so that `intervals` names the expensive hops.
+function storedRun(completedAt, words, intervals) {
+  const events = [];
+  const analyses = [];
+  let time = 0;
+  words.forEach((word, wordIndex) => {
+    [...word].forEach((character, offset) => {
+      if (offset > 0) time += intervals[`${word[offset - 1]}${character}`] ?? 150;
+      events.push({ type: "character", key: character, expectedCharacter: character, wordIndex, bufferOffset: offset, timestampMs: time });
+    });
+    analyses.push({ wordIndex, expected: word, finalCorrect: word.length, categories: { insertion: 0 } });
+    time += 500;
+  });
+  return { completedAt, summary: { pauseThresholdMs: 700 }, events, words: analyses };
+}
+
+function driveRun(app, words, intervals) {
+  let time = 0;
+  words.forEach((word, index) => {
+    [...word].forEach((character, offset) => {
+      if (offset > 0) time += intervals[`${word[offset - 1]}${character}`] ?? 150;
+      app.handleCharacter(character, time);
+    });
+    if (index < words.length - 1) {
+      time += 500;
+      app.handleSpace(time);
+    }
+  });
+}
+
+test("a movement finding shows the run just typed, and the history the average came from", async () => {
+  const words = ["petrol", "nitrate", "extra", "citrus"];
+  const catalog = [{ id: "tr-piece", title: "Tr", body: words.join(" "), durationSeconds: 60 }];
+  const { window, document, app } = await createTypingPage({
+    catalog,
+    beforeInit: frozenTimer,
+    storage: {
+      "typist-typing-settings-v2": { selectedText: "tr-piece", chartScope: "text" },
+      "typist-typing-analysis-v3": {
+        version: 3,
+        texts: {
+          "tr-piece": {
+            runs: [1, 2, 3, 4].map((day) => storedRun(`2026-01-0${day}T00:00:00.000Z`, words, { tr: 280 })),
+          },
+        },
+      },
+    },
+  });
+
+  try {
+    // The same piece again, but this time the movement went better.
+    driveRun(app, words, { tr: 190 });
+
+    const rows = [...document.querySelectorAll("#findingBars .bar-row")];
+    assert.equal(rows.length, 3, "all-time, the words around it, and this run");
+    assert.equal(rows[0].querySelector(".who").textContent, "t → r");
+    assert.equal(rows[0].querySelector(".ms").textContent, "280ms");
+    assert.equal(rows[1].querySelector(".ms").textContent, "150ms");
+    assert.equal(rows[2].querySelector(".who").textContent, "this run");
+    assert.equal(rows[2].querySelector(".ms").textContent, "190ms");
+
+    // Every run that has the movement is a column, and this one is marked.
+    const trend = document.querySelector("#findingTrend");
+    assert.equal(trend.hidden, false);
+    assert.equal(trend.querySelectorAll(".trend-plot .median").length, 5);
+    assert.equal(trend.querySelectorAll(".trend-plot .median.now").length, 1);
+    // Every occurrence is drawn, not only the five medians.
+    assert.equal(trend.querySelectorAll(".trend-plot .dot").length, 20);
+    assert.equal(trend.querySelectorAll(".trend-plot .dot.now").length, 4);
+  } finally {
+    window.close();
+  }
+});
+
+test("the history reaches past the runs whose events were trimmed away", async () => {
+  const words = ["petrol", "nitrate", "extra", "citrus"];
+  const catalog = [{ id: "tr-piece", title: "Tr", body: words.join(" "), durationSeconds: 60 }];
+  // Twenty runs whose detailed events are long gone, kept only as movements.
+  const old = Array.from({ length: 20 }, (_, index) => ({
+    textId: "tr-piece",
+    completedAt: `2025-${String(Math.floor(index / 28) + 1).padStart(2, "0")}-${String((index % 28) + 1).padStart(2, "0")}T00:00:00.000Z`,
+    isDrill: false,
+    pairs: { tr: { ms: [320 - index * 2, 310 - index * 2], base: 170 } },
+  }));
+
+  const { window, document, app } = await createTypingPage({
+    catalog,
+    beforeInit: frozenTimer,
+    storage: {
+      "typist-typing-settings-v2": { selectedText: "tr-piece", chartScope: "text" },
+      "typist-typing-transitions-v1": { version: 1, runs: old },
+      "typist-typing-analysis-v3": {
+        version: 3,
+        texts: { "tr-piece": { runs: [1, 2, 3, 4].map((day) => storedRun(`2026-01-0${day}T00:00:00.000Z`, words, { tr: 280 })) } },
+      },
+    },
+  });
+
+  try {
+    driveRun(app, words, { tr: 190 });
+
+    const medians = document.querySelectorAll("#findingTrend .trend-plot .median");
+    assert.equal(medians.length, 25, "twenty kept runs, four detailed ones, and this one");
+    assert.equal(document.querySelectorAll("#findingTrend .trend-plot .median.now").length, 1);
+
+    // The detailed runs were folded in once, and this run was added to them.
+    const kept = JSON.parse(window.localStorage.getItem("typist-typing-transitions-v1"));
+    assert.equal(kept.runs.length, 25);
+    assert.equal(new Set(kept.runs.map((entry) => entry.completedAt)).size, 25, "no run is folded in twice");
+  } finally {
+    window.close();
+  }
+});
+
+test("with a single run there is no history to draw, so none is claimed", async () => {
+  const { window, document, app } = await createTypingPage({
+    catalog: [{ id: "short", title: "Short", body: "ab cd", durationSeconds: 30 }],
+    beforeInit: frozenTimer,
+  });
+
+  try {
+    app.handleCharacter("a", 0); app.handleCharacter("b", 120); app.handleSpace(240);
+    app.handleCharacter("c", 2000); app.handleCharacter("d", 2120);
+
+    assert.equal(document.querySelector("#findingTrend").hidden, true);
+  } finally {
+    window.close();
+  }
+});
+
 test("a run-only finding is labelled as this run, never as a pattern", async () => {
   const { window, document, app } = await createTypingPage({
     catalog: [{ id: "short", title: "Short", body: "ab cd ef", durationSeconds: 30 }],
@@ -383,6 +513,7 @@ test("typing history can be cleared across aggregate and detailed stores", async
   assert.deepEqual(JSON.parse(window.localStorage.getItem("typist-typing-stats-v2")), { version: 2, texts: {} });
   assert.deepEqual(JSON.parse(window.localStorage.getItem("typist-typing-runs-v2")), { version: 2, runs: [] });
   assert.deepEqual(JSON.parse(window.localStorage.getItem("typist-typing-analysis-v3")), { version: 3, texts: {} });
+  assert.deepEqual(JSON.parse(window.localStorage.getItem("typist-typing-transitions-v1")), { version: 1, runs: [] });
 });
 
 test("cancelling the clear-history confirmation preserves the completed run", async () => {

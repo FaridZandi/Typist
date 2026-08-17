@@ -2,7 +2,7 @@
 // malformed or outdated entry degrades to an empty store instead of breaking
 // the session, and every write is allowed to fail silently.
 
-import { typingAnalysisKey, typingRunsKey, typingSettingsKey, typingStatsKey } from "./config.js";
+import { typingAnalysisKey, typingRunsKey, typingSettingsKey, typingStatsKey, typingTransitionsKey } from "./config.js";
 
 function safeRead(storageArea, key, fallback) {
   try {
@@ -53,11 +53,21 @@ export function createStorage(textById, storageArea = globalThis.localStorage) {
       : { version: 3, texts: {} };
   };
 
+  // Kept apart from the detailed records precisely so it can be kept whole: it
+  // is the only store with no cap, and the only one small enough to deserve one.
+  const loadTransitionsStore = () => {
+    const saved = safeRead(storageArea, typingTransitionsKey, {});
+    return saved?.version === 1 && Array.isArray(saved.runs)
+      ? { version: 1, runs: saved.runs.filter((run) => run && typeof run.completedAt === "string" && run.pairs) }
+      : { version: 1, runs: [] };
+  };
+
   const state = {
     settings: loadSettings(),
     statsStore: loadStatsStore(),
     runsStore: loadRunsStore(),
     analysisStore: loadAnalysisStore(),
+    transitionsStore: loadTransitionsStore(),
   };
 
   const createTextStats = (text) => ({
@@ -76,6 +86,7 @@ export function createStorage(textById, storageArea = globalThis.localStorage) {
     get statsStore() { return state.statsStore; },
     get runsStore() { return state.runsStore; },
     get analysisStore() { return state.analysisStore; },
+    get transitionsStore() { return state.transitionsStore; },
 
     saveSettings() {
       try {
@@ -90,6 +101,7 @@ export function createStorage(textById, storageArea = globalThis.localStorage) {
         storageArea.setItem(typingStatsKey, JSON.stringify(state.statsStore));
         storageArea.setItem(typingRunsKey, JSON.stringify(state.runsStore));
         storageArea.setItem(typingAnalysisKey, JSON.stringify(state.analysisStore));
+        storageArea.setItem(typingTransitionsKey, JSON.stringify(state.transitionsStore));
       } catch {
         // The current run still renders when persistence fails.
       }
@@ -121,6 +133,7 @@ export function createStorage(textById, storageArea = globalThis.localStorage) {
       state.statsStore = { version: 2, texts: {} };
       state.runsStore = { version: 2, runs: [] };
       state.analysisStore = { version: 3, texts: {} };
+      state.transitionsStore = { version: 1, runs: [] };
       this.saveStores();
     },
 

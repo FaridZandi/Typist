@@ -119,7 +119,36 @@
 .bar { height: 16px; border-radius: 5px; background: var(--line); overflow: hidden; }
 .bar span { display: block; height: 100%; border-radius: 5px; background: var(--accent); }
 .bar-row.slow .bar span { background: #b45309; }
+/* The run just finished, in its own colour so it reads as a different thing
+   from the all-time numbers above it — and matches its mark in the history. */
+.bar-row.now .bar span { background: repeating-linear-gradient(115deg, #b45309 0 7px, #d97b1a 7px 14px); }
 .bar-row .ms { text-align: right; font-size: 0.82rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+
+/* ---- the history behind the median: every occurrence, run by run ---- */
+.trend { margin-top: 18px; }
+.trend[hidden] { display: none; }
+.trend-plot { display: block; width: 100%; height: auto; }
+.trend-plot .now-band { fill: rgba(180, 83, 9, 0.08); }
+.trend-plot .axis { stroke: var(--line); stroke-width: 1; }
+.trend-plot .line { fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.trend-plot .line.pair { stroke: rgba(180, 83, 9, 0.75); }
+.trend-plot .line.base { stroke: #b3c0cb; stroke-dasharray: 5 4; }
+/* Mark sizes are set per render so a long history crowds instead of smearing,
+   which is why stroke-width is not declared here. */
+.trend-plot .spread { stroke: rgba(180, 83, 9, 0.22); stroke-linecap: round; }
+.trend-plot .dot { fill: rgba(180, 83, 9, 0.4); }
+.trend-plot .dot.now { fill: rgba(180, 83, 9, 0.5); }
+.trend-plot .median { fill: #b45309; }
+.trend-plot .median.now { fill: #b45309; stroke: #fff; stroke-width: 2; }
+.trend-plot .base-mark { stroke: #8b98a5; stroke-linecap: round; }
+.trend-plot .piece { fill: none; stroke: #b3c0cb; stroke-width: 1.5; }
+.trend-plot .piece.same { fill: var(--accent); stroke: var(--accent); }
+.trend-plot .trend-label {
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 750;
+  fill: #8b98a5;
+}
 
 /* Each chip is a rival explanation the evidence ruled out. */
 .verdict { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
@@ -204,5 +233,8 @@
 .sw { display: inline-block; width: 16px; height: 8px; border-radius: 2px; }
 .sw-error { background: rgba(198, 40, 40, 0.4); }
 .sw-focus { box-shadow: inset 0 -3px 0 #b45309; }
+.sw-pair { width: 10px; height: 10px; border-radius: 999px; background: #b45309; }
+.sw-base { background: #8b98a5; }
+.sw-piece { width: 10px; height: 10px; border-radius: 999px; background: var(--accent); }
 
 .history-footer { display: flex; justify-content: flex-end; margin-top: 18px; }

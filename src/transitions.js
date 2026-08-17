@@ -85,7 +85,10 @@ function addRelativeCost(samples) {
     group.forEach((sample) => {
       const others = group.filter((candidate) => candidate !== sample).map((candidate) => candidate.intervalMs);
       const baseline = getMedian(others);
-      if (baseline > 0) sample.relativeCost = sample.intervalMs / baseline;
+      if (baseline > 0) {
+        sample.wordBaselineMs = baseline;
+        sample.relativeCost = sample.intervalMs / baseline;
+      }
     });
   });
 
@@ -184,4 +187,54 @@ export function getSlowestSupportedTransition(rows, { presentPairs = null } = {}
 // the run it is shown beside.
 export function getRunPairs(record, options = {}) {
   return new Set(collectTransitionSamples(record, options).map((sample) => sample.pair));
+}
+
+// One run's movements, small enough to keep forever. Detailed event records are
+// trimmed to the recent few because the confidence machinery re-derives from
+// them; this is what survives, so a movement's history can outlive them.
+export function summariseRunTransitions(record, { pauseThresholdMs = Infinity } = {}) {
+  const pairs = {};
+  addRelativeCost(collectTransitionSamples(record, { pauseThresholdMs }))
+    .filter((sample) => !sample.hesitation)
+    .forEach((sample) => {
+      if (!pairs[sample.pair]) pairs[sample.pair] = { ms: [], baselines: [] };
+      pairs[sample.pair].ms.push(sample.intervalMs);
+      if (sample.wordBaselineMs > 0) pairs[sample.pair].baselines.push(sample.wordBaselineMs);
+    });
+
+  // The comparison collapses to one number per run; the occurrences do not,
+  // because the spread is what tells one bad hop apart from a slow run.
+  Object.values(pairs).forEach((entry) => {
+    entry.base = entry.baselines.length ? Math.round(getMedian(entry.baselines)) : null;
+    delete entry.baselines;
+  });
+
+  return {
+    textId: record.textId ?? null,
+    completedAt: record.completedAt ?? null,
+    isDrill: Boolean(record.isDrill),
+    pairs,
+  };
+}
+
+// Every measurement held for one pair, run by run and in order. A single median
+// hides whether the movement is getting better, so the screen shows the
+// occurrences the median was made of, each beside the other movements in its
+// own words — the same comparison the headline number is built from.
+export function getPairTimeline(summaries, pair, { isCurrent = () => false } = {}) {
+  return summaries
+    .flatMap((summary) => {
+      const entry = summary.pairs?.[pair];
+      if (!entry?.ms?.length) return [];
+      return [{
+        textId: summary.textId ?? null,
+        completedAt: summary.completedAt ?? null,
+        isDrill: Boolean(summary.isDrill),
+        current: Boolean(isCurrent(summary)),
+        samples: entry.ms,
+        medianMs: Math.round(getMedian(entry.ms)),
+        baselineMs: Number.isFinite(entry.base) ? entry.base : null,
+      }];
+    })
+    .sort((left, right) => String(left.completedAt).localeCompare(String(right.completedAt)));
 }

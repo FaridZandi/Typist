@@ -4,7 +4,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { measureTransitions, getSlowestSupportedTransition } from "../src/transitions.js";
+import {
+  measureTransitions, getPairTimeline, getSlowestSupportedTransition, summariseRunTransitions,
+} from "../src/transitions.js";
 import { getMotorClass } from "../src/shared/keyboard-map.js";
 
 // Builds a run where every intra-word gap is `base` ms, except pairs named in
@@ -213,6 +215,49 @@ test("the reported comparison is the one that ranked the movement", () => {
   assert.equal(row.medianIntervalMs, 300);
   assert.equal(row.withinWordBaselineMs, 150, "the baseline shown must be the within-word one");
   assert.equal(Math.round(row.medianIntervalMs / row.withinWordBaselineMs * 100) - 100, row.slowdownPercent);
+});
+
+test("the history keeps every occurrence, run by run and in order", () => {
+  const records = [280, 260, 200].map((interval, index) => buildRun({
+    completedAt: `2026-06-0${index + 1}T00:00:00.000Z`,
+    words: [
+      { text: "petrol", base: 150, intervals: { tr: interval } },
+      { text: "nitrate", base: 150, intervals: { tr: interval } },
+    ],
+  }));
+  const summaries = records.map((record) => summariseRunTransitions(record, { pauseThresholdMs: 700 }));
+  const timeline = getPairTimeline(summaries, "tr", { isCurrent: (summary) => summary === summaries.at(-1) });
+
+  assert.deepEqual(timeline.map((entry) => entry.medianMs), [280, 260, 200], "oldest first, so a trend can be read");
+  assert.deepEqual(timeline.map((entry) => entry.samples.length), [2, 2, 2], "every occurrence, not only the median");
+  assert.deepEqual(timeline.map((entry) => entry.current), [false, false, true]);
+  // Each run carries the same comparison the headline number is built from.
+  assert.deepEqual(timeline.map((entry) => entry.baselineMs), [150, 150, 150]);
+});
+
+test("the history leaves out runs that never typed the pair, and hesitations", () => {
+  const records = [
+    buildRun({ completedAt: "2026-07-01T00:00:00.000Z", words: [{ text: "petrol", base: 150, intervals: { tr: 260 } }] }),
+    buildRun({ completedAt: "2026-07-02T00:00:00.000Z", words: [{ text: "steady", base: 150 }] }),
+    buildRun({ completedAt: "2026-07-03T00:00:00.000Z", words: [{ text: "petrol", base: 150, intervals: { tr: 1500 } }] }),
+  ];
+  const timeline = getPairTimeline(records.map((record) => summariseRunTransitions(record, { pauseThresholdMs: 700 })), "tr");
+
+  assert.equal(timeline.length, 1, "a run with no occurrence is not a point on the line");
+  assert.deepEqual(timeline[0].samples, [260]);
+});
+
+test("a run's transition summary is small enough to keep forever", () => {
+  const summary = summariseRunTransitions(buildRun({
+    completedAt: "2026-07-04T00:00:00.000Z",
+    words: [{ text: "petrol", base: 150, intervals: { tr: 260 } }, { text: "nitrate", base: 150, intervals: { tr: 260 } }],
+  }), { pauseThresholdMs: 700 });
+
+  assert.deepEqual(summary.pairs.tr, { ms: [260, 260], base: 150 });
+  // The occurrences survive, the per-occurrence comparison collapses to one
+  // number, and nothing else about the run is carried along.
+  assert.deepEqual(Object.keys(summary).sort(), ["completedAt", "isDrill", "pairs", "textId"]);
+  assert.ok(JSON.stringify(summary).length < 700, `kept ${JSON.stringify(summary).length} bytes for two words`);
 });
 
 test("a pattern absent from this run does not lead its debrief", () => {

@@ -8,7 +8,7 @@
 
 import { getMedian } from "./metrics.js";
 import { getCharacterAggregate, getWordAggregate } from "./aggregates.js";
-import { getSlowestSupportedTransition } from "./transitions.js";
+import { getPairTimeline, getSlowestSupportedTransition } from "./transitions.js";
 import { MOTOR_CLASS_LABELS } from "./shared/keyboard-map.js";
 
 export const FINDING_LEVELS = ["transition", "word", "character", "pause", "pace", "run", "none"];
@@ -18,9 +18,16 @@ function locateWords(words, predicate) {
   return words.flatMap((word, index) => (predicate(word.text) ? [index] : []));
 }
 
-function transitionFinding({ transitions, words, runPairs }) {
+function transitionFinding({ transitions, words, runPairs, transitionHistory = [], currentTransitions = null }) {
   const row = getSlowestSupportedTransition(transitions, { presentPairs: runPairs });
   if (!row) return null;
+
+  // The history behind the median, so a claim about a movement can be checked
+  // against the run it is shown beside rather than taken on faith.
+  const timeline = getPairTimeline(transitionHistory, row.pair, {
+    isCurrent: (entry) => entry === currentTransitions,
+  });
+  const thisRun = timeline.find((entry) => entry.current) ?? null;
 
   return {
     level: "transition",
@@ -29,10 +36,14 @@ function transitionFinding({ transitions, words, runPairs }) {
     measure: {
       valueMs: row.medianIntervalMs,
       baselineMs: row.withinWordBaselineMs,
+      runValueMs: thisRun?.medianMs ?? null,
+      runBaselineMs: thisRun?.baselineMs ?? null,
+      runSamples: thisRun?.samples.length ?? 0,
       slowdownPercent: row.slowdownPercent,
       motorClass: row.motorClass,
       motorClassLabel: MOTOR_CLASS_LABELS[row.motorClass],
     },
+    history: { pair: row.pair, entries: timeline, currentTextId: currentTransitions?.textId ?? null },
     evidence: { samples: row.scoredSamples, distinctWords: row.distinctWords, distinctTexts: row.distinctTexts },
     ruledOut: row.ruledOut,
     accurate: true,
