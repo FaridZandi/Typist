@@ -2,5 +2,7 @@
 // imported and initialised explicitly by tests without side effects on import.
 
 import { initTypingApp } from "./main.js";
+import { installDataPortability } from "./data-portability.js";
 
 initTypingApp();
+installDataPortability();

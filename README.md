@@ -124,6 +124,8 @@ Consistency measures the variation between consecutive captured key presses, inc
 
 Typing history is stored locally in versioned `localStorage` records. Character statistics are keyed by text ID, while completed runs retain their resolved text ID even when the Random selector was used. A bounded v3 analysis record retains detailed event data for the most recent 12 runs of each text; clearing typing history clears every record.
 
+Use **Export practice data** at the bottom of the typing or reaction page to download a JSON backup of typing history, reaction drills, key statistics, and settings for this browser origin. **Import practice data** replaces those records after confirmation and downloads a copy of the current records first. Keep the export somewhere outside this browser profile if it needs to survive browser data removal.
+
 Beside it sits a v1 transition record: for each run, the intervals of every
 movement and the median of the words they sat in, and nothing else. It is a few
 hundred bytes a run rather than tens of kilobytes, so it is never trimmed — the
