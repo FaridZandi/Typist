@@ -1,0 +1,112 @@
+# Development tasks
+
+The single active development backlog. IDs stay stable when tasks move.
+Use Now for at most one active task; Next for ready work; Later for ideas;
+Blocked for work waiting on a named decision or dependency; Done for completed work.
+Every task records completion criteria and verification. Done requires evidence.
+Mention the task ID in implementation commits; record commit hashes when known.
+Historical plans remain context: [old backlog](thinking/backlog.md), [roadmap](thinking/roadmap.md), [finding plan](thinking/roadmap-2.md), [stream design](thinking/stream-mode-storage.md).
+
+## Now
+
+## Next
+
+- [ ] TYP-001 Restore remaining finding signals
+  Context: Fold the remaining signal types from the old feedback engine into the finding ladder as extra rungs: Shift timing, trigrams, and prefix/suffix word patterns. They were measured and ranked before the ladder replaced that engine, and the aggregates that produced them still exist in `src/aggregates.js`. Recover the wording and thresholds from `src/feedback.js` in the history if needed.
+  Done when: The finding ladder includes supported Shift, trigram, and prefix/suffix findings with calibrated thresholds.
+  Verify: npm test; verify the affected interaction in the browser.
+  Source: thinking/backlog.md
+
+- [ ] TYP-002 Validate findings against drill outcomes
+  Context: Use drill outcomes to test a finding. A drill records its focus and its events, so a later run can ask whether the pattern actually improved — and the app can retract a finding it can no longer support.
+  Done when: A focused drill can validate or retract a finding using comparable before/after outcomes.
+  Verify: npm test; verify the affected interaction in the browser.
+  Source: thinking/backlog.md
+
+- [ ] TYP-003 Explain or fix the first-character heatmap
+  Context: The first letter of the text is never coloured in the letter-speed heatmap; it stays grey no matter how many runs are recorded. Cause: `src/run-engine.js` only records a matched interval once there is a previous matched keypress, so prompt index 0 never gets one and `getAverageLetterWpm` returns `null` forever. It is not a coverage threshold problem, so more practice will not fix it.
+  Done when: The first-character display has a documented meaningful timing or unavailable state; repeated runs do not leave an unexplained grey cell.
+  Verify: npm test; verify the affected interaction in the browser.
+  Source: thinking/backlog.md
+
+## Later
+
+## Blocked
+
+## Done
+
+- [x] TYP-004 Show elapsed time as a progress bar above the typing panel.
+  Context: Show elapsed time as a progress bar above the typing panel.
+  Done when: The described feature is available in the current app.
+  Verify: npm test; verify the affected interaction in the browser.
+  Source: thinking/backlog.md
+  Evidence: Marked complete in the original backlog; historical completion retained, not newly acceptance-tested.
+
+- [x] TYP-005 Chart speed, accuracy, and consistency over time
+  Context: Record speed, accuracy, and consistency per test, and plot their progression over time with a real charting library.
+  Done when: The described feature is available in the current app.
+  Verify: npm test; verify the affected interaction in the browser.
+  Source: thinking/backlog.md
+  Evidence: Marked complete in the original backlog; historical completion retained, not newly acceptance-tested.
+
+- [x] TYP-006 Smooth letter speed with a six-character window
+  Context: Send letter speed through a windowed average before recording it — each letter averages itself with the five before it.
+  Done when: The described feature is available in the current app.
+  Verify: npm test; verify the affected interaction in the browser.
+  Source: thinking/backlog.md
+  Evidence: Marked complete in the original backlog; historical completion retained, not newly acceptance-tested.
+
+- [x] TYP-007 Require 50 percent coverage for heatmaps
+  Context: Only draw heatmaps for characters seen in at least 50% of runs, so rarely practised stretches cannot distort the range with 0%/100% outliers.
+  Done when: The described feature is available in the current app.
+  Verify: npm test; verify the affected interaction in the browser.
+  Source: thinking/backlog.md
+  Evidence: Marked complete in the original backlog; historical completion retained, not newly acceptance-tested.
+
+- [x] TYP-008 Support per-text metrics and random prompt selection
+  Context: Support multiple texts, recording data and metrics per text, with an explicit picker and a random option.
+  Done when: The described feature is available in the current app.
+  Verify: npm test; verify the affected interaction in the browser.
+  Source: thinking/backlog.md
+  Evidence: Marked complete in the original backlog; historical completion retained, not newly acceptance-tested.
+
+- [x] TYP-009 Extract the prompt catalog into its own file
+  Context: Move the prompt catalog out of the main script into its own file (now `src/texts.js`).
+  Done when: The described feature is available in the current app.
+  Verify: npm test; verify the affected interaction in the browser.
+  Source: thinking/backlog.md
+  Evidence: Marked complete in the original backlog; historical completion retained, not newly acceptance-tested.
+
+- [x] TYP-010 Add a basic readme.
+  Context: Add a basic readme.
+  Done when: The described feature is available in the current app.
+  Verify: npm test; verify the affected interaction in the browser.
+  Source: thinking/backlog.md
+  Evidence: Marked complete in the original backlog; historical completion retained, not newly acceptance-tested.
+
+- [x] TYP-012 Export and restore practice history
+  Context: Portable practice history and recovery checks.
+  Done when: Valid history restores; malformed imports leave existing history intact.
+  Verify: npm test
+  Evidence: 90 tests passed on 2026-09-30, including 8 portability tests.
+  Commit: b1b54a0
+- [x] TYP-011 Decide the stream-practice storage design
+  Context: The stream-mode note is a proposal, not a shipped feature. Resolve sampling, typo handling, retention, comparability, and export before implementation.
+  Done when: A chosen design and bounded implementation tasks are recorded.
+  Verify: Review the decision against existing run history and export formats.
+  Source: thinking/stream-mode-storage.md
+  Evidence: Design recorded in thinking/stream-v1.md: 70/30 broad/targeted draws, corrected-error scoring, pause exclusion, lifetime word summaries and bounded audit windows, isolated IndexedDB and export/restore.
+
+- [x] TYP-013 Build continuous adaptive word practice
+  Context: A separate page streams words, records per-word mistakes including corrected errors, and mixes broad practice with targeted repeats. Keep the timed test independent.
+  Done when: Continuous practice, useful word and daily statistics, bounded IndexedDB storage, safe export/restore, and recovery feedback work without changing the timed test.
+  Verify: npm test; browser checks for typing/corrections, pause handling, persistence, adaptation, retention, malformed restore, and navigation.
+  Source: thinking/stream-v1.md
+  Evidence: 2026-10-04: 101 Node/JSDOM tests and 11 Chromium browser checks passed. Browser coverage includes corrected errors, uninterrupted/blur timing, mobile-style input, reload, independent timed data, concurrent writes, adaptive targets, retention, backup buttons, malformed and cancelled restore, transaction rollback, and recovery of 200 queued attempts. New page served successfully on the existing port 8000. Safari acceptance was not run.
+
+- [x] TYP-014 Keep word-stream motion continuous across Space
+  Context: The prompt currently removes the completed word and animates its transform back to zero, making upcoming words jump at every Space.
+  Done when: Space advances the existing stream left without resetting its coordinate system; trimming old words and rapid typing do not introduce jumps.
+  Verify: Browser geometry checks at Space, during in-flight animation, after history trimming, and with reduced motion; existing stream browser suite.
+  Source: src/stream/boot.js
+  Evidence: 13 Chromium browser checks passed. New geometry regression verifies that upcoming words retain their position at Space, move only left, and do not jump when trimming completed words during an unfinished transition. Reduced-motion behavior and the existing stream workflows also passed.

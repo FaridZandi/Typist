@@ -1,16 +1,17 @@
 # Typist
 
-Typist is a small browser-based typing practice project. It currently has three standalone pages:
+Typist is a small browser-based typing practice project. It has four standalone pages:
 
 - `index.html`: a 60-second typing test with selectable practice texts.
 - `reaction.html`: a reaction-time key drill.
 - `dvorak.html`: a minimal Dvorak keyboard schematic.
+- `stream.html`: continuous word practice with adaptive repeats and its own history.
 
 The app is static HTML/CSS/JavaScript. There is no build step.
 
 ## Running
 
-All three pages load as ES modules, so they must be served over HTTP rather
+The pages load as ES modules, so they must be served over HTTP rather
 than opened from the filesystem — browsers block module requests on `file://`.
 Serve the project root and open the pages from there:
 
@@ -22,6 +23,7 @@ python3 -m http.server 8000
 http://localhost:8000/index.html
 http://localhost:8000/reaction.html
 http://localhost:8000/dvorak.html
+http://localhost:8000/stream.html
 ```
 
 The typing page has no external dependencies. The reaction page loads Chart.js
@@ -47,6 +49,43 @@ The suite is split by what each test needs:
 - `test/reaction.test.js` boots `reaction.html` and covers warm-up, hits,
   errors, target selection, malformed-storage recovery, key metrics, settings
   persistence, and metronome controls, plus the shared Dvorak renderer.
+
+## Word stream
+
+Open `stream.html`, focus the stream, and type. Space submits a word and brings
+the next one forward; Backspace edits the current word. There are no sessions,
+start buttons, or stop buttons. Only completed words are saved. The existing
+timed test, reaction page, and their data are independent.
+
+The stream draws from a bundled English vocabulary. Broad practice supplies
+70% of draws when a supported target exists; targeted repeats supply 30%.
+A word becomes a target after at least three tries with two troubled attempts
+in its last 20. Corrections count as trouble, even when the final spelling is
+right. Clean repeats gradually remove that attention. Recent dots show the
+actual sequence, not a claim that an improvement is statistically established.
+Broad and targeted outcomes are counted separately.
+
+Each word has lifetime counts and a recent 20-attempt trail. Word timing is
+first letter to Space, including correction time. Attempts with gaps over five
+seconds or a focus/visibility interruption are excluded from word timing.
+Partial words are discarded on reload; they do not affect accuracy.
+
+History lives in IndexedDB (`typist-word-stream`), with at most 10,000 attempts
+from the last 30 days and one year of daily totals. Lifetime word summaries
+remain. Use the same browser, hostname, and port to keep using the same history.
+The **Storage & backup** section exports/restores that database and can request
+persistent storage. Restore validates before replacing stream data; it never
+replaces timed-test or reaction history. Failed writes remain queued in the
+current tab, with a visible recovery action and a warning before closing.
+
+Full design and tradeoffs: [stream-v1.md](thinking/stream-v1.md).
+
+Real-browser tests run against an isolated temporary local server:
+
+```sh
+npx playwright install chromium
+npm run test:browser
+```
 
 ## Typing Test
 

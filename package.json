@@ -4,9 +4,11 @@
   "version": "1.0.0",
   "description": "Browser-based typing and reaction practice.",
   "scripts": {
-    "test": "node --test 'test/*.test.js'"
+    "test": "node --test 'test/*.test.js'",
+    "test:browser": "node --test test/browser/stream.test.mjs"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "jsdom": "^26.1.0"
   },
   "type": "module"

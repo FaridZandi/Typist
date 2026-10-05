@@ -1,3 +1,5 @@
+> Historical backlog, reconciled on 2026-09-30. Use [TODO.md](../TODO.md) for active tasks.
+
 # Backlog
 
 Carried over from the original `todo` file. See [roadmap.md](roadmap.md) and

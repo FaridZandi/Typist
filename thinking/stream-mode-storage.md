@@ -1,5 +1,9 @@
 # Stream mode — what we record, and why
 
+> Historical exploration. The word-focused mode is now built at `stream.html`.
+> Its chosen scoring, sampling, storage, and retention rules are recorded in
+> [stream-v1.md](stream-v1.md). The projections below were not implemented.
+
 A design note, not a plan. Nothing here is built. It covers a second practice
 mode that sits beside the existing 60-second test rather than replacing it, and
 the storage shape that mode needs.
