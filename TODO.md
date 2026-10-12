@@ -35,6 +35,16 @@ Historical plans remain context: [old backlog](thinking/backlog.md), [roadmap](t
 
 ## Done
 
+- [x] TYP-020 Make Word Stream discoverable from the typing page
+  Priority: P2
+  Order: 1
+  Context: The user cannot reach Word Stream through the main typing app and has to type stream.html manually. Add an obvious direct navigation link using the existing app style.
+  Done when: A clear Word Stream navigation link is available from the main typing page, with a return route; timed-test behavior and data remain unchanged.
+  Verify: Browser navigation and keyboard-focus checks; run existing timed-test regression tests.
+  Source: index.html
+  Notes: 2026-10-11: User explicitly requested this fix as a task. Reused the existing TYP-020 task and raised it from low to normal priority.
+  Evidence: 2026-10-11: Added the header Word Stream link using the existing secondary-link style; retained the existing Typing test return link. npm test passed all 101 tests, including timed-test regressions. Headless Chromium checks passed at 1280×900 and 390×844: visible link and keyboard focus outline, Shift+Tab/Enter and mouse navigation in both directions, no horizontal overflow, completed timed run with virtual timer, byte-for-byte unchanged localStorage after stream practice and return, persisted stream word, and no page errors. Screenshots inspected at both widths; git diff --check passed. Safari/Firefox and physical mobile keyboard checks were not run.
+
 - [x] TYP-004 Show elapsed time as a progress bar above the typing panel.
   Context: Show elapsed time as a progress bar above the typing panel.
   Done when: The described feature is available in the current app.
