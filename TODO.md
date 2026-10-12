@@ -35,6 +35,15 @@ Historical plans remain context: [old backlog](thinking/backlog.md), [roadmap](t
 
 ## Done
 
+- [x] TYP-021 Write and verify the project brief for incoming agents
+  Priority: P2
+  Order: 1
+  Context: New Codex sessions receive a task snapshot but lack project orientation, recent decisions, user preferences, and awareness of other work. Inspect this project and produce its own concise, durable handoff document; do not assume undocumented history.
+  Done when: A root PROJECT_BRIEF.md explains the app purpose, supported entry points, how to run it, architecture and internal/external dependencies, data locations and persistence or backup behavior, development and verification commands, current work, and known pitfalls. Record established user preferences and decisions with references; explicitly label uncertainties. Link the canonical TODO.md and AGENTS.md rather than duplicating the backlog. Include a last-verified date and maintenance instructions. Add an AGENTS.md instruction to read and maintain the brief so incoming agents discover it.
+  Verify: Check commands, paths, entry points, architecture, dependency ownership, and data claims against current code and configuration. Review planning documents and the current Git state. Ensure references resolve, exclude secrets and personal data, and identify anything that could not be verified. Confirm the brief is concise enough to orient a new agent.
+  Notes: Documentation task only: inspect the project before writing. Do not invent user preferences or undocumented decisions. At completion follow the standing agent policy: verify, commit only assignment-related changes with the task ID, and push to the configured upstream; report blockers.
+  Evidence: 2026-10-11: Reviewed all four HTML entry points, module imports, package/lockfile, configs, storage and backup implementations, planning documents and Git state. Added a 1,170-word PROJECT_BRIEF.md with referenced policies/decisions, current-work guidance, known pitfalls, explicit uncertainties, last-verified date and maintenance instructions; AGENTS.md now requires reading and maintaining it. All 33 file references resolve; manual review found no secrets or personal practice data. npm test passed 101/101; npm run test:browser passed 13/13 Chromium Stream tests. Python HTTP server on port 8001 returned 200 with appropriate types for /, all four pages, three boot modules and shared CSS; initial sandbox bind restrictions were overcome using approved escalation. git diff --check passed. Existing dependencies/browser were used; installation commands were checked against configuration, not rerun. Hosted deployment, live CDN, Safari/Firefox and physical mobile behavior were not verified; source/config review, not the regression suites alone, establishes the documentation claims. Preserved pre-existing App Manager edits outside the assignment commit.
+
 - [x] TYP-020 Make Word Stream discoverable from the typing page
   Priority: P2
   Order: 1

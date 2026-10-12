@@ -1,5 +1,6 @@
 # Development workflow
 
+- Read `PROJECT_BRIEF.md` for project orientation before work; maintain its verified facts, references, uncertainties, and last-verified date when relevant behavior or decisions change.
 - Read `TODO.md` before development work. It is the active backlog.
 - Preserve task IDs. Move tasks between Now, Next, Later, Blocked, and Done.
 - Keep at most one task in Now. Record context, Done when, and Verify before implementation.
