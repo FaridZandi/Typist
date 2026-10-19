@@ -1,6 +1,6 @@
 # Typist — agent orientation
 
-Last verified: **2026-10-11** (source/configuration review and local checks).
+Last verified: **2026-10-18** (Stream practice-set source review, Node and Chromium checks; baseline orientation reviewed 2026-10-11).
 Read [AGENTS.md](AGENTS.md) and the canonical [TODO.md](TODO.md) before work.
 This brief is orientation; task status and acceptance criteria live in TODO.
 
@@ -100,11 +100,21 @@ Clearing site data can delete it; there is no automatic off-device backup.
   at most 10,000/30 days, daily totals at most 365 days. Trimming runs at open,
   every 50 saves, export and restore, so limits are not enforced after every word.
   Partial words are discarded on reload. Failed saves stay in tab memory;
-  retry and closing warnings are provided, typing stops at 200 pending attempts,
+  retry and closing warnings are provided, recorded typing stops at 200 pending attempts,
   and backup controls are disabled while attempts are pending. Closing can lose
   that queue. Stream backup validates before confirmed replacement of Stream
   alone. Persistent-storage permission is an explicit button, not a backup.
   See [storage](src/stream/storage.js) and [shipped design](thinking/stream-v1.md).
+- Stream word rows offer a keyboard-accessible word button for immediate solo
+  practice and Add for a deduplicated temporary set. While nonempty, the set
+  replaces every current/upcoming draw. Its visible indicator says attempts are
+  not recorded; remove buttons and Clear return to normal sampling when empty.
+  Set changes discard partial input and reset the track; completed practice
+  words keep the normal motion but bypass summaries, totals, session outcomes,
+  saves and exports. Pending recorded saves remain recoverable. The set and
+  practice progress are never persisted and reload returns to normal mode.
+  See [boot](src/stream/boot.js), [UI](stream.html) and
+  [browser acceptance tests](test/browser/stream.test.mjs).
 
 ## Established direction, current work and pitfalls
 
@@ -138,7 +148,7 @@ status: roadmap 2 describes the older feedback bundles, superseded by the ladder
 [stream-mode-storage.md](thinking/stream-mode-storage.md) is a superseded proposal.
 README's final file list omits Stream; rely on the entry table above.
 
-Git at assignment start: `main`, HEAD `301ec62`, two commits ahead of
+Git snapshot at brief creation (2026-10-11): `main`, HEAD `301ec62`, two commits ahead of
 `origin/main`; AGENTS.md and TODO.md already had uncommitted App Manager edits.
 Inspect fresh status before staging; preserve unrelated work. Standing
 [agent instructions](../../tools/codex-instructions.md) authorize task commits
@@ -147,10 +157,16 @@ deployment record. Hosted deployment, current CDN availability, Safari/Firefox
 and physical mobile behavior were not verified; there is no declared browser
 support matrix or deployment configuration in this repository.
 
-Verification on the date above: 101 Node tests and 13 Chromium Stream tests
+Baseline verification (2026-10-11): 101 Node tests and 13 Chromium Stream tests
 passed; Python's HTTP server served all four pages and entry modules on port
 8001. All 33 document references resolve. Existing dependencies/browser were
 used; installation commands were checked against configuration, not rerun.
+
+Verification on 2026-10-18: 101 Node tests and 17 Chromium Stream tests passed,
+including keyboard practice selection, exclusive buffered sampling, removal/reset,
+partial-word switches, unchanged stored/exported history, reload and pending-save
+recovery. Inspected the 390px practice UI screenshot. Safari/Firefox, physical
+mobile keyboards and assistive technology were not tested.
 
 ## Maintenance
 

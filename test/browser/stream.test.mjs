@@ -211,3 +211,120 @@ test('reduced-motion stream advances without an animated reset at word boundarie
   assert.equal((await data(p)).totals.attempts, 7);
   assert.equal(await p.locator('#streamText').evaluate(track => getComputedStyle(track).transitionDuration), '0s');
 });
+
+async function hardWords(p) {
+  await p.evaluate(async () => {
+    const {StreamStore} = await import('/src/stream/storage.js');
+    const {WordAttempt} = await import('/src/stream/model.js');
+    const store = await StreamStore.open();
+    for (const word of ['practice', 'rhythm']) for (let n = 0; n < 3; n++) {
+      const engine = new WordAttempt({word, source: 'broad'}, 'test');
+      engine.key('x', 0);
+      await store.save({...engine.key(' ', 100), id: `${word}-${n}`});
+    }
+    store.db.close();
+  });
+  await p.reload(); await p.waitForFunction(() => document.getElementById('focusCount').textContent === '2');
+}
+const contents = backup => { const {exportedAt, ...content} = backup; return content; };
+async function preview(p, allowed) {
+  const words = await p.locator('.stream-upcoming-word').allTextContents();
+  words.unshift(await p.locator('#currentWordAccessible').textContent());
+  assert.equal(words.length, 6);
+  assert.ok(words.every(word => allowed.includes(word)), JSON.stringify(words));
+}
+
+test('keyboard selection repeats one unrecorded word and leaves every store, export and recorded UI unchanged', async t => {
+  const p = await page(t); await hardWords(p);
+  const before = contents(await data(p));
+  const ui = () => p.locator('#recentWords, .stream-summary, #wordList, #dailyHistory, #broadRate').allTextContents();
+  const beforeUI = await ui();
+  await p.evaluate(() => localStorage.setItem('typist-typing-sentinel', 'keep'));
+  // Discard a partially typed normal word on entry.
+  await p.locator('#streamInput').focus(); await p.keyboard.type('partial');
+  await p.getByRole('button', {name: 'Practice practice only', exact: true}).focus(); await p.keyboard.press('Enter');
+  assert.equal(await p.locator('#streamInput').evaluate(node => node === document.activeElement), true);
+  assert.match(await p.locator('#practiceSet').textContent(), /attempts are not recorded/);
+  for (let n = 0; n < 12; n++) { await preview(p, ['practice']); await word(p, n % 2 === 0); }
+  assert.deepEqual(await ui(), beforeUI);
+  assert.deepEqual(contents(await data(p)), before);
+  await p.locator('.stream-data summary').click();
+  const downloaded = p.waitForEvent('download'); await p.locator('#exportStream').click();
+  assert.deepEqual(contents(JSON.parse(await readFile(await (await downloaded).path(), 'utf8'))), before);
+  await p.locator('#retrySave').evaluate(button => button.click());
+  await p.waitForFunction(() => document.getElementById('saveState').textContent === 'All words saved');
+  assert.deepEqual(contents(await data(p)), before);
+  await p.reload(); await p.waitForFunction(() => !document.getElementById('streamInput').disabled);
+  assert.equal(await p.locator('#practiceSet').isVisible(), false);
+  assert.notEqual(await p.locator('#wordSource').textContent(), 'Unrecorded practice');
+  assert.equal(await p.evaluate(() => localStorage.getItem('typist-typing-sentinel')), 'keep');
+  assert.deepEqual(contents(await data(p)), before);
+});
+
+test('adding deduplicates, replaces all buffered words, and supports removal/reset on narrow screens', async t => {
+  const p = await page(t, {width: 390, height: 844}); await hardWords(p);
+  const before = contents(await data(p));
+  await p.getByRole('button', {name: 'Add practice to practice set', exact: true}).focus();
+  await p.keyboard.press('Enter'); await preview(p, ['practice']);
+  await p.keyboard.press('Enter'); assert.equal(await p.locator('#practiceWords button').count(), 1);
+  await p.locator('#streamInput').focus(); await p.keyboard.type('partial');
+  await p.getByRole('button', {name: 'Add rhythm to practice set', exact: true}).click();
+  assert.equal(await p.locator('#practiceWords button').count(), 2);
+  assert.equal(await p.locator('#streamText .correct, #streamText .error').count(), 0);
+  const seen = new Set();
+  for (let n = 0; n < 25; n++) { await preview(p, ['practice', 'rhythm']); seen.add(await word(p)); }
+  assert.equal(seen.size, 2);
+  assert.equal(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await p.waitForFunction(() => {
+    const word = document.querySelector('.stream-upcoming-word').getBoundingClientRect();
+    const surface = document.getElementById('streamSurface').getBoundingClientRect();
+    return word.left >= surface.left && word.left < surface.right;
+  });
+  await p.screenshot({path: '/private/tmp/typist-practice-narrow.png', fullPage: true});
+  await p.getByRole('button', {name: 'Remove practice from practice set'}).focus(); await p.keyboard.press('Space');
+  await preview(p, ['rhythm']);
+  // Selecting a row replaces an existing set, rather than adding to it.
+  await p.getByRole('button', {name: 'Practice practice only', exact: true}).click(); await preview(p, ['practice']);
+  await p.getByRole('button', {name: 'Remove practice from practice set'}).click();
+  assert.equal(await p.locator('#practiceSet').isVisible(), false);
+  await p.getByRole('button', {name: 'Practice rhythm only', exact: true}).click();
+  await p.locator('#streamInput').focus(); await p.keyboard.type('partial');
+  await p.locator('#clearPractice').focus(); await p.keyboard.press('Enter');
+  assert.equal(await p.locator('#practiceSet').isVisible(), false);
+  assert.equal(await p.locator('#streamText .correct, #streamText .error').count(), 0);
+  assert.notEqual(await p.locator('#wordSource').textContent(), 'Unrecorded practice');
+  assert.deepEqual(contents(await data(p)), before);
+  await word(p); assert.equal((await data(p)).totals.attempts, before.totals.attempts + 1);
+});
+
+for (const failure of [false, true]) test(`entering practice preserves a normal ${failure ? 'failed save for retry' : 'in-flight save'}`, async t => {
+  const p = await page(t); await hardWords(p);
+  const original = (await data(p)).totals.attempts;
+  await p.evaluate(async failure => {
+    const {StreamStore} = await import('/src/stream/storage.js'); const save = StreamStore.prototype.save;
+    const gate = new Promise(resolve => { window.finishSave = resolve; });
+    StreamStore.prototype.save = async function(record) {
+      if (failure) throw new Error('Practice test save failure');
+      await gate; return save.call(this, record);
+    };
+    window.restoreSave = () => { StreamStore.prototype.save = save; };
+  }, failure);
+  await p.locator('#streamInput').focus(); await p.keyboard.type('normal ');
+  await p.waitForFunction(() => document.getElementById('saveState').textContent.includes('1 word'));
+  await p.getByRole('button', {name: 'Practice practice only', exact: true}).click();
+  for (let n = 0; n < 8; n++) { await p.keyboard.type('practice '); await preview(p, ['practice']); }
+  assert.equal((await data(p)).totals.attempts, original);
+  assert.equal(await p.locator('#allWords').textContent(), String(original + 1));
+  assert.equal(await p.locator('#recentWords .recent-result').count(), 1);
+  assert.equal(await p.locator('#exportStream').isDisabled(), true);
+  if (failure) {
+    await p.locator('#storageAlert').waitFor({state: 'visible'});
+    await p.evaluate(() => window.restoreSave()); await p.locator('#retrySave').click();
+  } else await p.evaluate(() => window.finishSave());
+  await p.waitForFunction(() => document.getElementById('saveState').textContent === 'All words saved');
+  const saved = await data(p); assert.equal(saved.totals.attempts, original + 1);
+  assert.equal(saved.attempts.filter(record => record.typed === 'normal').length, 1);
+  await preview(p, ['practice']);
+  for (let n = 0; n < 3; n++) await word(p);
+  assert.deepEqual(contents(await data(p)), contents(saved));
+});

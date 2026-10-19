@@ -10,9 +10,15 @@
     <section class="practice-panel" aria-labelledby="app-title">
       <header class="top-bar"><div><p class="eyebrow">Continuous practice</p><h1 id="app-title">Word stream</h1><p>One word leads to the next.</p></div><nav class="button-row" aria-label="Practice modes"><a class="secondary-link" href="index.html">Typing test</a><a class="secondary-link" href="reaction.html">Reaction mode</a></nav></header>
       <div class="stream-summary" aria-label="Stream statistics"><div><span>Words today</span><strong id="todayWords">0</strong></div><div><span>Clean today</span><strong id="todayClean">—</strong></div><div><span>Words to revisit</span><strong id="focusCount">0</strong></div><div><span>Lifetime words</span><strong id="allWords">0</strong></div></div>
+      <section id="practiceSet" class="practice-set" aria-label="Unrecorded practice set" hidden>
+        <p role="status"><strong>Practice set · attempts are not recorded.</strong></p>
+        <p>Only these words will appear. Changing the set discards the current partial word. The set clears on reload.</p>
+        <div id="practiceWords" class="practice-words"></div>
+        <button id="clearPractice" type="button" class="secondary-button">Clear set · resume normal stream</button>
+      </section>
       <section class="stream-stage" aria-label="Continuous typing">
         <div class="stage-heading"><span id="practiceStatus">Loading your words…</span><span id="wordSource" class="source-chip">Broad practice</span></div>
-        <div id="streamSurface" class="stream-surface"><div class="cursor-guide" aria-hidden="true"></div><div id="streamText" class="stream-text" aria-hidden="true"></div><textarea id="streamInput" class="stream-input" rows="1" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="Type the current word" aria-describedby="streamHint currentWordAccessible" disabled></textarea></div>
+        <div id="streamSurface" class="stream-surface"><div class="cursor-guide" aria-hidden="true"></div><div id="streamText" class="stream-text" aria-hidden="true"></div><textarea id="streamInput" class="stream-input" rows="1" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="Type the current word" aria-describedby="streamHint currentWordAccessible wordSource" disabled></textarea></div>
         <span id="currentWordAccessible" class="visually-hidden" aria-live="polite"></span>
         <p id="streamHint" class="stream-hint">Click here and type. Space moves on · Backspace corrects · Take a break whenever you like.</p>
         <div id="recentWords" class="recent-words" aria-label="Recent word outcomes"></div>
@@ -20,6 +26,7 @@
       <div id="storageAlert" class="storage-alert" role="alert" hidden><span id="storageError"></span><button id="retrySave" type="button">Retry saving</button></div>
       <section class="word-insights" aria-labelledby="insightsTitle">
         <div class="insights-heading"><div><p class="eyebrow">Your words</p><h2 id="insightsTitle">Where practice goes next</h2></div><label class="word-filter">Show<select id="wordFilter"><option value="focus">To revisit</option><option value="all">All practiced words</option></select></label></div>
+        <p class="word-practice-hint">Select a word to practice it alone, or Add words to an unrecorded practice set.</p>
         <div id="wordList" class="word-list"></div>
         <div class="insights-foot"><span id="broadRate">Broad practice: no words yet</span><span class="trail-legend"><i class="sample clean"></i>clean <i class="sample trouble"></i>needed work</span></div>
       </section>

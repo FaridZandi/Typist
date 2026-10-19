@@ -10,17 +10,44 @@ let store = null; let summaries = new Map(); let totals = emptyTotals(); let day
 let queue = []; let history = []; let attempt; let pending = []; let saving = false; let storageFailed = false; let restoring = false;
 let saveCount = 0; let lastKey = 0; let retained = 0;
 const recentDraws = [];
+let practiceWords = new Set();
 const percentage = (clean, count) => count ? `${Math.round(clean / count * 100)}%` : '—';
 const element = (tag, className, text) => { const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined) node.textContent = text; return node; };
 
-function appendWord() { const prompt = chooseWord(WORDS, summaries, recentDraws); queue.push(prompt); recentDraws.push(prompt.word); if (recentDraws.length > 8) recentDraws.shift(); }
+function appendWord() {
+  if (practiceWords.size) {
+    const words = [...practiceWords];
+    queue.push({word: words[Math.floor(Math.random() * words.length)], source: 'practice'});
+    return;
+  }
+  const prompt = chooseWord(WORDS, summaries, recentDraws); queue.push(prompt); recentDraws.push(prompt.word); if (recentDraws.length > 8) recentDraws.shift(); }
 function newAttempt() { attempt = new WordAttempt(queue[0], VOCABULARY_VERSION); }
 function renderPrompt() {
   renderer.render(queue[0].word, attempt.typed, queue.slice(1));
-  const targeted = queue[0].source === 'targeted'; $('wordSource').textContent = targeted ? 'Targeted repeat' : 'Broad practice'; $('wordSource').classList.toggle('targeted', targeted);
+  const targeted = queue[0].source === 'targeted'; $('wordSource').textContent = practiceWords.size ? 'Unrecorded practice' : targeted ? 'Targeted repeat' : 'Broad practice'; $('wordSource').classList.toggle('targeted', targeted);
   // Announce only new words, never every keystroke.
   if ($('currentWordAccessible').textContent !== queue[0].word) $('currentWordAccessible').textContent = queue[0].word;
 }
+
+// Rebuild the entire preview on every set change; partial input belongs to the
+// old selection and must never become a recorded or mixed-mode attempt.
+function setPractice(words) {
+  if (restoring) return;
+  practiceWords = new Set(words);
+  queue = []; recentDraws.length = 0;
+  for (let i = 0; i < 6; i++) appendWord();
+  newAttempt(); input.value = ''; renderer.reset();
+  $('practiceSet').hidden = !practiceWords.size;
+  $('practiceWords').replaceChildren(...[...practiceWords].map(word => {
+    const remove = element('button', 'secondary-button', `${word} ×`);
+    remove.type = 'button'; remove.setAttribute('aria-label', `Remove ${word} from practice set`);
+    remove.addEventListener('click', () => { setPractice([...practiceWords].filter(item => item !== word)); input.focus(); });
+    return remove;
+  }));
+  renderPrompt(); renderSaving();
+  $('practiceStatus').textContent = practiceWords.size ? 'Practice set ready · attempts are not recorded' : 'Normal stream resumed';
+}
+$('clearPractice').addEventListener('click', () => { setPractice([]); input.focus(); });
 
 function renderStats() {
   const today = days.get(dayKey(Date.now())) || emptyTotals();
@@ -40,7 +67,15 @@ function renderStats() {
       const trail = element('div', 'word-trail'); trail.setAttribute('role', 'img'); trail.setAttribute('aria-label', `Last ${word.recent.length} attempts: ${word.recent.map(sample => sample.clean ? 'clean' : 'needed work').join(', ')}`);
       word.recent.forEach(sample => { const mark = element('i', `sample ${sample.clean ? 'clean' : 'trouble'}`); mark.title = `${new Date(sample.at).toLocaleString()} · ${sample.clean ? 'Clean' : 'Needed work'} · ${sample.source}`; trail.append(mark); });
       const timing = element('span', 'word-time', word.timed ? `${(word.executionMs / word.timed / 1000).toFixed(2)}s` : '—'); timing.title = `${word.timed} uninterrupted attempts; first letter to Space, including corrections`;
-      row.append(element('span', 'word-name', word.word), rate, trail, timing); list.append(row);
+      const name = element('div', 'word-actions');
+      const practice = element('button', 'word-name', word.word);
+      practice.type = 'button'; practice.setAttribute('aria-label', `Practice ${word.word} only`); practice.title = 'Practice only this word · unrecorded';
+      practice.addEventListener('click', () => { setPractice([word.word]); input.focus(); });
+      const add = element('button', 'add-word secondary-button', 'Add');
+      add.type = 'button'; add.setAttribute('aria-label', `Add ${word.word} to practice set`);
+      add.addEventListener('click', () => { if (!practiceWords.has(word.word)) setPractice([...practiceWords, word.word]); });
+      name.append(practice, add);
+      row.append(name, rate, trail, timing); list.append(row);
     });
   }
   const dayList = [...days.values()].sort((a, b) => b.day.localeCompare(a.day)); $('historyCount').textContent = `${dayList.length} days`;
@@ -50,9 +85,9 @@ function renderStats() {
 
 function renderSaving() {
   $('saveState').textContent = pending.length ? `${pending.length} word${pending.length === 1 ? '' : 's'} not saved yet` : store ? 'All words saved' : 'Not saved';
-  input.disabled = !attempt || restoring || pending.length >= 200;
+  input.disabled = !attempt || restoring || (!practiceWords.size && pending.length >= 200);
   $('exportStream').disabled = !store || Boolean(pending.length) || restoring; $('importStream').disabled = !store || Boolean(pending.length) || restoring;
-  if (pending.length >= 200) $('practiceStatus').textContent = 'Recover saving to continue';
+  if (!practiceWords.size && pending.length >= 200) $('practiceStatus').textContent = 'Recover saving to continue';
 }
 function storageError(error) { storageFailed = true; $('storageAlert').hidden = false; $('storageError').textContent = `History could not be saved: ${error.message}. ${pending.length} completed words are held in this tab.`; renderSaving(); }
 async function drain() {
@@ -76,6 +111,10 @@ async function openStorage() {
 function applyRecord(record) { summaries.set(record.word, addWord(summaries.get(record.word), record)); totals = addTotals(totals, record); const day = dayKey(record.at); days.set(day, {day, ...addTotals(days.get(day), record)}); }
 function complete(record) {
   renderer.commit(record.word, record.typed);
+  // Never let an unrecorded outcome reach summaries, session history or saves.
+  if (record.source === 'practice') {
+    queue.shift(); appendWord(); newAttempt(); renderPrompt(); return;
+  }
   record.id = crypto.randomUUID(); applyRecord(record); pending.push(record); history.push(record); history = history.slice(-6);
   $('recentWords').replaceChildren(...history.map(result => { const item = element('span', `recent-result${result.clean ? '' : ' trouble'}`, `${result.clean ? '✓' : '·'} ${result.word}`); item.title = `${result.typed} · ${result.corrections} corrections · ${result.errors} wrong keys · ${result.remaining} edits remaining`; if (result.corrections) item.append(element('small', '', 'corrected')); return item; }));
   queue.shift(); appendWord(); newAttempt(); renderPrompt(); renderStats(); renderSaving(); if (storageFailed) $('storageError').textContent = `Saving is unavailable. ${pending.length} completed words are held in this tab; retry before closing.`; void drain();
