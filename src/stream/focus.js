@@ -17,7 +17,7 @@ export function createFocusControl(root, initial, onChange) {
   const show = () => { popup.hidden = false; };
   const hide = () => { pinned = false; popup.hidden = true; };
   root.addEventListener('pointerenter', event => { if (event.pointerType !== 'touch') show(); });
-  root.addEventListener('pointerleave', () => { if (!pinned && !root.contains(document.activeElement)) hide(); });
+  root.addEventListener('pointerleave', event => { if (event.pointerType !== 'touch') hide(); });
   root.addEventListener('focusin', show);
   root.addEventListener('focusout', event => { if (!pinned && !root.contains(event.relatedTarget)) hide(); });
   root.addEventListener('pointerdown', event => { if (event.pointerType === 'touch' && !popup.contains(event.target)) { pinned = true; show(); } });
@@ -44,21 +44,32 @@ export function createFocusControl(root, initial, onChange) {
     const rows = distribution.ranked;
     const svg = $('focusPlot'); svg.replaceChildren();
     const max = Math.max(.01, ...rows.map(row => row.probability));
-    const x = i => rows.length === 1 ? 220 : 52 + i / Math.max(1, rows.length - 1) * 348;
+    const x = i => rows.length === 1 ? 220 : 52 + Math.log10(i + 1) / Math.log10(Math.max(2, rows.length)) * 348;
     const y = p => 136 - p / max * 110;
     svg.append(svgNode('path', {d: 'M52 22V136H400', fill: 'none', stroke: '#a3aeb8'}));
     for (const fraction of [0, .5, 1]) {
       svg.append(svgNode('text', {x: 47, y: y(max * fraction) + 4, 'text-anchor': 'end'}, percent(max * fraction)));
     }
-    svg.append(svgNode('text', {x: 52, y: 13}, 'Selection probability'), svgNode('text', {x: 220, y: 174, 'text-anchor': 'middle'}, 'Difficulty rank · practiced words'));
+    svg.append(svgNode('text', {x: 52, y: 13}, 'Selection probability'), svgNode('text', {x: 220, y: 174, 'text-anchor': 'middle'}, 'Difficulty rank · log scale'));
     if (rows.length) {
       svg.append(svgNode('polyline', {points: rows.map((row, i) => `${x(i)},${y(row.probability)}`).join(' '), fill: 'none', stroke: '#0f766e', 'stroke-width': 2}));
       rows.forEach((row, i) => {
         const dot = svgNode('circle', {cx: x(i), cy: y(row.probability), r: rows.length > 80 ? 2 : 3, fill: '#0f766e'});
         dot.append(svgNode('title', {}, `#${row.rank} ${row.word}: ${percent(row.probability)}`)); svg.append(dot);
       });
-      svg.append(svgNode('text', {x: x(0), y: 153, 'text-anchor': 'middle'}, '1'));
-      if (rows.length > 1) svg.append(svgNode('text', {x: x(rows.length - 1), y: 153, 'text-anchor': 'middle'}, rows.length));
+      // 1–2–5 ticks expose the log spacing; omit near-end ticks to keep labels apart.
+      const ticks = [1];
+      for (let decade = 1; decade <= rows.length; decade *= 10) {
+        for (const factor of [1, 2, 5]) {
+          const rank = decade * factor;
+          if (rank > 1 && rank < rows.length && x(rank - 1) - x(ticks.at(-1) - 1) >= 28 && x(rows.length - 1) - x(rank - 1) >= 28) ticks.push(rank);
+        }
+      }
+      if (rows.length > 1) ticks.push(rows.length);
+      for (const rank of ticks) {
+        svg.append(svgNode('path', {d: `M${x(rank - 1)} 136v4`, stroke: '#a3aeb8'}));
+        svg.append(svgNode('text', {x: x(rank - 1), y: 153, 'text-anchor': 'middle'}, rank));
+      }
     } else svg.append(svgNode('text', {x: 220, y: 80, 'text-anchor': 'middle'}, 'No practiced words yet'));
     $('focusRanks').replaceChildren(...rows.map(row => {
       const item = document.createElement('li');

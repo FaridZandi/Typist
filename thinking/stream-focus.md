@@ -33,7 +33,10 @@ Display all practiced vocabulary words sorted by trouble score descending,
 then ASCII alphabetical order. Sparse/clean evidence scores zero and is labeled
 “no established trouble”, not asserted to be a reliable difficulty estimate.
 Cooldown words keep their rank and show zero probability. The y value is the
-full marginal P(w), never the score or H alone. Values round to two decimals
+full marginal P(w), never the score or H alone. Rank uses a logarithmic x-axis
+with 1–2–5 ticks and the final rank, spreading out the hardest words; probability
+remains linear. Mouse departure dismisses the popup even with slider focus,
+while keyboard focus and touch preview remain available. Values round to two decimals
 in percent; chart coordinates use unrounded probabilities. Unseen words are
 not ranked; their combined mass and remaining count are shown separately.
 An empty history has no rank curve and 100% unseen mass. An exhausted unseen

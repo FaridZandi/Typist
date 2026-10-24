@@ -371,7 +371,11 @@ test('difficulty focus live probabilities, keyboard controls and persistence pre
   await p.reload(); await p.waitForFunction(() => !document.getElementById('streamInput').disabled);
   assert.equal(await p.locator('#difficultyFocus').inputValue(), '99');
   await p.locator('#focusControl').hover(); assert.equal(await p.locator('#focusPreview').isVisible(), true);
+  await p.locator('#difficultyFocus').click();
+  assert.equal(await p.locator('#difficultyFocus').evaluate(node => node === document.activeElement), true);
+  await p.locator('#focusPlot').hover(); assert.equal(await p.locator('#focusPreview').isVisible(), true);
   await p.locator('h1').hover(); assert.equal(await p.locator('#focusPreview').isVisible(), false);
+  await p.keyboard.press('ArrowLeft'); assert.equal(await p.locator('#focusPreview').isVisible(), true);
 });
 
 test('touch preview pins and dismisses on narrow screens; practice override disables focus without data', async t => {
@@ -392,4 +396,34 @@ test('touch preview pins and dismisses on narrow screens; practice override disa
   await word(p); await preview(p, ['practice']); assert.deepEqual(contents(await data(p)), before);
   await p.locator('#clearPractice').click(); assert.equal(await p.locator('#difficultyFocus').isDisabled(), false);
   assert.equal(await p.locator('#difficultyFocus').inputValue(), '100');
+});
+
+
+test('probability plot spreads difficulty ranks logarithmically with readable ticks', async t => {
+  const p = await page(t);
+  await p.evaluate(async () => {
+    const {StreamStore} = await import('/src/stream/storage.js');
+    const {WORDS} = await import('/src/stream/words.js');
+    const {WordAttempt} = await import('/src/stream/model.js');
+    const store = await StreamStore.open();
+    for (const word of WORDS.slice(0, 100)) for (let i = 0; i < 3; i++) {
+      const attempt = new WordAttempt({word, source: 'broad'}, 'test'); attempt.key('x', 0);
+      await store.save({...attempt.key(' ', 100), id: `log-${word}-${i}`});
+    }
+    store.db.close();
+  });
+  await p.reload(); await p.waitForFunction(() => !document.getElementById('streamInput').disabled);
+  await p.locator('#difficultyFocus').focus();
+  const points = await p.locator('#focusPlot circle').evaluateAll(nodes => nodes.map(node => Number(node.getAttribute('cx'))));
+  assert.equal(points.length, 100);
+  assert.equal(points[0], 52); assert.equal(points[99], 400);
+  assert.ok(Math.abs(points[9] - 226) < .001); // Rank 10 is halfway from 1 to 100.
+  assert.ok(points[1] - points[0] > 40);
+  assert.deepEqual(await p.locator('#focusPlot text[y="153"]').allTextContents(), ['1', '2', '5', '10', '20', '50', '100']);
+  assert.match(await p.locator('#focusPlot').textContent(), /log scale/);
+  await p.screenshot({path: '/tmp/typist-log-desktop.png', fullPage: true});
+  await p.setViewportSize({width: 390, height: 844});
+  await p.locator('#difficultyFocus').focus();
+  await p.screenshot({path: '/tmp/typist-log-mobile.png', fullPage: true});
+  assert.equal(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
 });

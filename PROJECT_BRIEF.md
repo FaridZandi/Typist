@@ -103,8 +103,10 @@ Clearing site data can delete it; there is no automatic off-device backup.
   The control changes only new draws and preserves partial input and track motion.
   The compact slider sits in the statistics row without a separate preview button
   or card. Hover/focus previews probabilities; touching the slider pins the
-  preview until outside tap, close or Escape. Details stay inside the popup.
-  The ranked curve includes broad plus targeted mass after cooldown constraints;
+  preview until outside tap, close or Escape. Mouse departure closes it even
+  while the slider retains focus. Details stay inside the popup.
+  The ranked curve uses a logarithmic rank x-axis and linear probability y-axis.
+  It includes broad plus targeted mass after cooldown constraints;
   unseen probability appears separately. The snapshot uses current tab history,
   which the next completion can change. Practice sets disable this control.
   See [policy and calibration](thinking/stream-focus.md). The existing evidence
