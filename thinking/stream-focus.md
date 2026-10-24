@@ -32,7 +32,9 @@ positive probability and cooldown prevents immediate repeated hard-word loops.
 Display all practiced vocabulary words sorted by trouble score descending,
 then ASCII alphabetical order. Sparse/clean evidence scores zero and is labeled
 “no established trouble”, not asserted to be a reliable difficulty estimate.
-Cooldown words keep their rank and show zero probability. The y value is the
+Cooldown words keep their rank and show zero probability as amber hollow
+markers. The eligible-word curve breaks at these ranks, with a visible cooldown
+legend, so temporary exclusions do not look like dips in the rank weighting. The y value is the
 full marginal P(w), never the score or H alone. Rank uses a logarithmic x-axis
 with 1–2–5 ticks and the final rank, spreading out the hardest words; probability
 remains linear. Mouse departure dismisses the popup even with slider focus,

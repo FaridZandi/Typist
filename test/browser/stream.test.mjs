@@ -427,3 +427,29 @@ test('probability plot spreads difficulty ranks logarithmically with readable ti
   await p.screenshot({path: '/tmp/typist-log-mobile.png', fullPage: true});
   assert.equal(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
 });
+
+
+test('rank-two cooldown is an explained zero marker rather than a dip in the difficulty curve', async t => {
+  const p = await page(t);
+  const distribution = await p.evaluate(async () => {
+    const {wordProbabilities} = await import('/src/stream/model.js');
+    const {createFocusControl} = await import('/src/stream/focus.js');
+    const summaries = new Map(['alpha', 'beta', 'gamma'].map(word => [word, {attempts: 3, recent: [{clean: false}, {clean: false}, {clean: false}]}]));
+    const d = wordProbabilities(['alpha', 'beta', 'gamma', 'unseen'], summaries, ['beta'], 50);
+    createFocusControl(document.getElementById('focusControl'), 50, () => {})(d, false);
+    return d.ranked;
+  });
+  assert.equal(distribution[1].rank, 2); assert.equal(distribution[1].word, 'beta');
+  assert.equal(distribution[1].probability, 0);
+  assert.ok(distribution[0].probability > 0 && distribution[2].probability > 0);
+  await p.locator('#difficultyFocus').focus();
+  assert.match(await p.locator('#focusCooldown').textContent(), /1 recently drawn word cooling down.*0%/);
+  assert.equal(await p.locator('#focusPlot .focus-cooldown').count(), 1);
+  assert.match(await p.locator('#focusPlot .focus-cooldown title').textContent(), /#2 beta: 0.00%.*cooling down/);
+  assert.equal(await p.locator('#focusPlot .focus-cooldown').getAttribute('cy'), '136');
+  const curve = await p.locator('#focusPlot .focus-curve').getAttribute('d');
+  assert.equal((curve.match(/M/g) || []).length, 2); assert.equal(curve.includes('L'), false);
+  assert.equal(await p.locator('#focusPlot .focus-candidate').count(), 2);
+  await p.locator('#focusPreview').screenshot({path: '/tmp/typist-cooldown-plot.png'});
+  assert.match(await p.locator('#focusRanks li').nth(1).textContent(), /#2 beta · 0.00% · cooldown/);
+});

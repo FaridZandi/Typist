@@ -106,7 +106,9 @@ Clearing site data can delete it; there is no automatic off-device backup.
   preview until outside tap, close or Escape. Mouse departure closes it even
   while the slider retains focus. Details stay inside the popup.
   The ranked curve uses a logarithmic rank x-axis and linear probability y-axis.
-  It includes broad plus targeted mass after cooldown constraints;
+  It includes broad plus targeted mass after cooldown constraints. Cooldown
+  words retain their rank and exact zero probability, shown as amber hollow
+  points with gaps in the curve and a visible cooldown note;
   unseen probability appears separately. The snapshot uses current tab history,
   which the next completion can change. Practice sets disable this control.
   See [policy and calibration](thinking/stream-focus.md). The existing evidence
