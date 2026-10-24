@@ -45,6 +45,8 @@ Historical plans remain context: [old backlog](thinking/backlog.md), [roadmap](t
   Depends on: TYP-023
   Notes: TYP-023 is Done. Cloud uses the same trouble score and alphabetical tie-breaking as difficulty ranks, and shows only supported trouble. Existing cross-tab refresh and trouble-retirement limitations remain separate backlog work.
   Evidence: 2026-10-23: npm test passed 106/106 and npm run test:browser passed 23/23 Chromium tests. Two new acceptance tests use synthetic histories to verify a third recorded attempt immediately enters the cloud, harder ranks have larger fonts, D3 has observable intermediate entry/size animation, rank changes preserve DOM identity, retired words animate out, unchanged visible ranks retain layout, and unrecorded practice leaves the cloud unchanged. Single/empty states, dense 100-word histories, 48/24 display caps, actual text bounds, no horizontal overflow, desktop/390px layouts and reduced motion (no active transitions) pass. Existing Stream input, motion, focus control, storage/backup/recovery and practice regressions pass. Inspected desktop/mobile and live-update screenshots. npm run vendor:cloud reproduced distributions/licenses byte-for-byte; npm install audit reported zero vulnerabilities. Updated PROJECT_BRIEF.md and documented library choice/ownership in vendor/README.md. git diff --check passed. Installation and Chromium/local-server checks needed sandbox escalation; Safari/Firefox, physical mobile devices and assistive technology remain unverified. Layout may omit words that cannot fit; caption reports actual displayed count and the complete table remains available.
+  Commit: 28caea4
+
 
 - [x] TYP-023 Add a difficulty-focus control with a live word-probability plot
   Priority: P2
