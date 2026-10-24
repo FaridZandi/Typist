@@ -1,6 +1,6 @@
 # Typist — agent orientation
 
-Last verified: **2026-10-23** (difficulty-focus policy and UI; baseline orientation reviewed 2026-10-11).
+Last verified: **2026-10-23** (live hard-word cloud, difficulty-focus policy and UI; baseline orientation reviewed 2026-10-11).
 Read [AGENTS.md](AGENTS.md) and the canonical [TODO.md](TODO.md) before work.
 This brief is orientation; task status and acceptance criteria live in TODO.
 
@@ -42,9 +42,11 @@ git diff --check
 ```
 
 The lockfile owns reproducible development dependencies. [package.json](package.json)
-defines Node's test runner, JSDOM and Playwright; neither library ships in the
-app. `npm test` runs `test/*.test.js` (models, JSDOM page interaction and data
-portability). The browser script runs only the Stream suite, creates its own
+defines Node's test runner, JSDOM and Playwright as development tools; those
+two libraries do not ship in the app. Pinned D3 and d3-cloud packages supply
+checked-in local browser assets, reproduced with `npm run vendor:cloud` after
+`npm ci` (see [vendor ownership](vendor/README.md)). `npm test` runs
+`test/*.test.js` (models, JSDOM page interaction and data portability). The browser script runs only the Stream suite, creates its own
 temporary localhost server and isolated Chromium contexts, and checks persistence,
 recovery, retention, input and motion. It is not whole-app browser acceptance.
 Verify affected UI in a browser as required by the assigned task.
@@ -66,7 +68,7 @@ use existing installations when available. No lint/build/deploy script is define
 - Stream: `src/stream/boot.js` owns input, queue and recovery UI; `model.js` owns
   attempts and the shared sampling/preview probability calculation, `focus.js` owns
   the difficulty control and its separate localStorage preference, `render.js` owns
-  continuous motion, `storage.js` owns
+  continuous motion, `cloud.js` owns the live ranked word-cloud view, `storage.js` owns
   IndexedDB transactions/backup, and `words.js` owns versioned vocabulary.
 - Shared: `src/shared/keyboard-layout.js` and `keyboard-map.js` own Dvorak
   rendering and movement classification. Stream reuses `src/alignment.js`.
@@ -74,7 +76,10 @@ use existing installations when available. No lint/build/deploy script is define
   `styles/index.css` imports the common cascade; Stream adds `styles/stream.css`.
 - Runtime external dependency: Reaction loads Chart.js **4.5.0** from jsDelivr
   in `reaction.html`, outside npm/lockfile ownership. Without it the history
-  chart is skipped. Other pages use local assets and browser APIs. No remote
+  chart is skipped. Stream locally serves D3 **7.9.0** and d3-cloud **1.2.7**
+  from `vendor/`, pinned in npm with retained licenses; D3 handles keyed animated
+  updates and d3-cloud handles word placement. Other assets use local files and
+  browser APIs. No remote
   practice-data sync or telemetry integration was found in source.
 
 ## Data and recovery
@@ -123,6 +128,17 @@ Clearing site data can delete it; there is no automatic off-device backup.
   that queue. Stream backup validates before confirmed replacement of Stream
   alone. Persistent-storage permission is an explicit button, not a backup.
   See [storage](src/stream/storage.js) and [shipped design](thinking/stream-v1.md).
+- Stream shows a live word cloud above its word table, using supported trouble
+  only, with the same score-descending/alphabetical ordering as difficulty rank
+  and the table. Font size decreases as `13 + (max - 13) / rank^0.45` (max 58px,
+  42px in compact layouts); deterministic, horizontal placement limits clutter.
+  D3 animates entry, exit, position and size for 420ms; reduced motion skips it.
+  Unchanged visible ranks retain their layout. Recorded outcomes, restore/retry
+  and resize refresh the cloud; unrecorded practice does not affect it. The cloud
+  is hidden without supported trouble. It lays out the top 48 words (24 below
+  500px available width); the caption reports the displayed count when capped or
+  the layout cannot fit every word. Long words scale to fit; the full table stays
+  available. It adds no stored data and uses the existing evidence/age limits.
 - Stream word rows offer a keyboard-accessible word button for immediate solo
   practice and Add for a deduplicated temporary set. While nonempty, the set
   replaces every current/upcoming draw. Its visible indicator says attempts are
@@ -186,9 +202,12 @@ partial-word switches, unchanged stored/exported history, reload and pending-sav
 recovery. Inspected the 390px practice UI screenshot. Safari/Firefox, physical
 mobile keyboards and assistive technology were not tested.
 
-Verification on 2026-10-23: 106 Node tests and 21 Chromium Stream tests passed.
+Verification on 2026-10-23: 106 Node tests and 23 Chromium Stream tests passed.
 Difficulty-focus tests use synthetic histories, seeded sampling and exact preview
-comparisons; desktop and 390px screenshots were inspected. See TODO Evidence for
+comparisons. Cloud tests verify live eligibility, retained word identity, actual
+intermediate entry/size animation, removal, unchanged layouts, practice isolation,
+single/empty states, dense desktop/mobile bounds and reduced motion; desktop
+and 390px screenshots were inspected. See TODO Evidence for
 acceptance details and the policy document for statistical tolerance and limits.
 
 ## Maintenance

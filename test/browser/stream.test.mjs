@@ -453,3 +453,110 @@ test('preview shows the distribution before cooldown while actual sampling keeps
   assert.match(await p.locator('#focusRanks li').nth(1).textContent(), new RegExp(`#2 beta · ${(result.preview[1].probability * 100).toFixed(2)}%`));
   await p.locator('#focusPreview').screenshot({path: '/tmp/typist-before-cooldown.png'});
 });
+
+async function cloudReady(p) {
+  await p.waitForFunction(() => document.getElementById('hardWordCloud').getAttribute('aria-busy') === 'false');
+}
+async function seedCloud(p, count = 2) {
+  await p.evaluate(async count => {
+    const {StreamStore} = await import('/src/stream/storage.js');
+    const {WordAttempt} = await import('/src/stream/model.js');
+    const {WORDS} = await import('/src/stream/words.js');
+    const store = await StreamStore.open();
+    const words = count === 2 ? ['practice', 'rhythm', 'the'] : WORDS.slice(0, count);
+    for (const word of words) for (let i = 0; i < (word === 'the' && count === 2 ? 2 : 3); i++) {
+      const attempt = new WordAttempt({word, source: 'broad'}, 'test');
+      // One clean attempt gives rhythm a lower supported-trouble score.
+      if (word === 'rhythm' && i === 2) [...word].forEach((key, i) => attempt.key(key, i * 100));
+      else attempt.key('x', 0);
+      const record = attempt.key(' ', word.length * 100);
+      await store.save({...record, id: `cloud-${word}-${i}`});
+    }
+    store.db.close();
+  }, count);
+  await p.reload(); await p.waitForFunction(() => !document.getElementById('streamInput').disabled); await cloudReady(p);
+}
+async function cloudClean(p, word, count) {
+  await p.evaluate(async ({word, count}) => {
+    const {StreamStore} = await import('/src/stream/storage.js'); const {WordAttempt} = await import('/src/stream/model.js');
+    const store = await StreamStore.open();
+    for (let i = 0; i < count; i++) {
+      const attempt = new WordAttempt({word, source: 'broad'}, 'test');
+      [...word].forEach((key, i) => attempt.key(key, i * 100));
+      await store.save({...attempt.key(' ', word.length * 100), id: crypto.randomUUID()});
+    }
+    store.db.close(); document.getElementById('retrySave').click();
+  }, {word, count});
+}
+
+test('word cloud updates live with animated entry, stable identities, rank resizing and removal', async t => {
+  const p = await page(t);
+  assert.equal(await p.locator('#hardWordCloud').isVisible(), false);
+  await p.addInitScript(() => { Math.random = () => .3000001; }); await seedCloud(p);
+  assert.equal(await p.locator('#currentWordAccessible').textContent(), 'the');
+  const cloud = p.locator('#hardWordCloud');
+  assert.ok((await cloud.boundingBox()).y < (await p.locator('#wordList').boundingBox()).y);
+  assert.equal(await cloud.locator('text').count(), 2);
+  const sizes = await cloud.locator('text').evaluateAll(nodes => nodes.map(node => [node.dataset.word, parseFloat(node.style.fontSize)]));
+  assert.ok(sizes.find(row => row[0] === 'practice')[1] > sizes.find(row => row[0] === 'rhythm')[1]);
+  await p.evaluate(() => { window.cloudPractice = document.querySelector('#hardWordCloud text[data-word="practice"]'); });
+  await word(p); // Third recorded attempt makes 'the' eligible immediately.
+  await p.waitForFunction(() => Boolean(document.querySelector('#hardWordCloud text[data-word="the"]')));
+  const entering = await cloud.locator('text[data-word="the"]').evaluate(node => ({size: parseFloat(getComputedStyle(node).fontSize), transition: Boolean(node.__transition)}));
+  assert.equal(entering.transition, true);
+  await cloudReady(p);
+  assert.ok(parseFloat(await cloud.locator('text[data-word="the"]').evaluate(node => node.style.fontSize)) > entering.size);
+  assert.equal(await p.evaluate(() => window.cloudPractice === document.querySelector('#hardWordCloud text[data-word="practice"]')), true);
+  const stable = await cloud.locator('svg').innerHTML();
+  await p.locator('#wordFilter').selectOption('all'); await cloudReady(p);
+  assert.equal(await cloud.locator('svg').innerHTML(), stable);
+  const beforeSize = await cloud.locator('text[data-word="practice"]').evaluate(node => parseFloat(node.style.fontSize));
+  await cloudClean(p, 'practice', 6);
+  await p.waitForFunction(() => document.querySelector('#hardWordCloud text[data-word="practice"]')?.dataset.rank === '3');
+  const intermediate = await cloud.locator('text[data-word="practice"]').evaluate(node => ({size: parseFloat(getComputedStyle(node).fontSize), transition: Boolean(node.__transition)}));
+  assert.equal(intermediate.transition, true);
+  await cloudReady(p);
+  const finalSize = await cloud.locator('text[data-word="practice"]').evaluate(node => parseFloat(node.style.fontSize));
+  assert.ok(finalSize < beforeSize); assert.ok(intermediate.size > finalSize);
+  assert.equal(await p.evaluate(() => window.cloudPractice === document.querySelector('#hardWordCloud text[data-word="practice"]')), true);
+  await cloudClean(p, 'practice', 20); await cloudReady(p);
+  await p.waitForFunction(() => !document.querySelector('#hardWordCloud text[data-word="practice"]'));
+  assert.equal(await cloud.locator('text').count(), 2);
+  const unchanged = await cloud.locator('svg').innerHTML();
+  await p.getByRole('button', {name: 'Practice rhythm only', exact: true}).click();
+  for (let i = 0; i < 4; i++) await word(p, true);
+  assert.equal(await cloud.locator('svg').innerHTML(), unchanged);
+  await cloud.screenshot({path: '/tmp/typist-cloud-live.png'});
+  await p.locator('#clearPractice').click();
+  await cloudClean(p, 'rhythm', 20); await cloudReady(p);
+  assert.equal(await cloud.locator('text').count(), 1);
+  assert.equal(await cloud.locator('text').getAttribute('data-word'), 'the');
+  await cloudClean(p, 'the', 20);
+  await cloud.waitFor({state: 'hidden'});
+  assert.equal(await cloud.locator('text').count(), 0);
+});
+
+test('dense word cloud is bounded and readable on desktop/mobile, and reduced motion skips transitions', async t => {
+  const p = await page(t); await p.emulateMedia({reducedMotion: 'reduce'}); await seedCloud(p, 100);
+  const cloud = p.locator('#hardWordCloud');
+  const check = async cap => {
+    await cloudReady(p);
+    const words = await cloud.locator('text').evaluateAll(nodes => nodes.map(node => ({word: node.dataset.word, rank: Number(node.dataset.rank), size: parseFloat(node.style.fontSize), transition: Boolean(node.__transition), box: node.getBoundingClientRect().toJSON()})));
+    assert.ok(words.length >= Math.floor(cap * .7) && words.length <= cap, String(words.length));
+    assert.ok(words.some(word => word.rank === 1));
+    assert.ok(words.every(word => word.size >= 12 && !word.transition));
+    const bounds = await cloud.locator('svg').boundingBox();
+    assert.ok(words.every(word => word.box.x >= bounds.x - 1 && word.box.y >= bounds.y - 1 && word.box.right <= bounds.x + bounds.width + 1 && word.box.bottom <= bounds.y + bounds.height + 1));
+    const rankSizes = [...words].sort((a, b) => a.rank - b.rank).map(word => word.size);
+    assert.ok(rankSizes[0] > rankSizes.at(-1));
+    assert.match(await cloud.locator('figcaption').textContent(), /of 100/);
+    assert.equal(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  };
+  await check(48); await cloud.screenshot({path: '/tmp/typist-cloud-desktop.png'});
+  await p.setViewportSize({width: 390, height: 844});
+  await p.waitForFunction(() => Number(document.querySelector('#hardWordCloud svg').getAttribute('viewBox').split(' ')[2]) < 500);
+  await check(24); await cloud.screenshot({path: '/tmp/typist-cloud-mobile.png'});
+  const before = await cloud.locator('text').count();
+  await cloudClean(p, 'the', 20); await p.waitForFunction(() => !document.querySelector('#hardWordCloud text[data-word="the"]'));
+  await cloudReady(p); assert.ok(await cloud.locator('text').count() <= before);
+});

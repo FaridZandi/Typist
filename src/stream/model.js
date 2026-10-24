@@ -32,6 +32,10 @@ export function troubleScore(word) {
   return (misses + 1) / (word.recent.length + 4);
 }
 
+export function compareDifficulty(a, b) {
+  return troubleScore(b) - troubleScore(a) || (a.word < b.word ? -1 : a.word > b.word ? 1 : 0);
+}
+
 export const DEFAULT_FOCUS = 50;
 export const normalizeFocus = value => Number.isFinite(Number(value)) ? Math.max(0, Math.min(100, Number(value))) : DEFAULT_FOCUS;
 
@@ -40,7 +44,7 @@ export const normalizeFocus = value => Number.isFinite(Number(value)) ? Math.max
 export function wordProbabilities(vocabulary, summaries, recent = [], focus = DEFAULT_FOCUS) {
   const words = [...new Set(vocabulary)];
   const practiced = word => (summaries.get(word)?.attempts || 0) > 0;
-  const ranked = words.filter(practiced).sort((a, b) => troubleScore(summaries.get(b)) - troubleScore(summaries.get(a)) || (a < b ? -1 : a > b ? 1 : 0));
+  const ranked = words.filter(practiced).sort((a, b) => compareDifficulty({...summaries.get(a), word: a}, {...summaries.get(b), word: b}));
   const cooldown = recent.slice(-5);
   let pool = words.filter(word => !cooldown.includes(word));
   // Release the least recently drawn candidate only when constraints demand it.

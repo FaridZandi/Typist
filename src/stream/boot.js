@@ -1,12 +1,14 @@
 import {WORDS, VOCABULARY_VERSION} from './words.js';
-import {WordAttempt, addWord, addTotals, emptyTotals, chooseWord, troubleScore, wordProbabilities} from './model.js';
+import {WordAttempt, addWord, addTotals, emptyTotals, chooseWord, troubleScore, wordProbabilities, compareDifficulty} from './model.js';
 import {StreamStore, dayKey, validateBackup} from './storage.js';
+import {HardWordCloud} from './cloud.js';
 import {StreamRenderer} from './render.js';
 import {createFocusControl, readFocus, saveFocus} from './focus.js';
 
 const $ = id => document.getElementById(id);
 const input = $('streamInput');
 const renderer = new StreamRenderer($('streamText'));
+const wordCloud = new HardWordCloud($('hardWordCloud'));
 let store = null; let summaries = new Map(); let totals = emptyTotals(); let days = new Map();
 let queue = []; let history = []; let attempt; let pending = []; let saving = false; let storageFailed = false; let restoring = false;
 let saveCount = 0; let lastKey = 0; let retained = 0;
@@ -61,6 +63,7 @@ $('clearPractice').addEventListener('click', () => { setPractice([]); input.focu
 
 function renderStats() {
   renderFocus();
+  wordCloud.update(summaries);
   const today = days.get(dayKey(Date.now())) || emptyTotals();
   $('todayWords').textContent = today.attempts.toLocaleString(); $('todayClean').textContent = percentage(today.clean, today.attempts);
   $('allWords').textContent = totals.attempts.toLocaleString();
@@ -68,7 +71,7 @@ function renderStats() {
   $('focusCount').textContent = focus.length;
   $('broadRate').textContent = `Broad practice: ${percentage(totals.broadClean, totals.broad)} clean · ${totals.broad.toLocaleString()} words`;
   const focused = $('wordFilter').value === 'focus';
-  const words = [...summaries.values()].filter(word => !focused || troubleScore(word) > 0).sort((a, b) => troubleScore(b) - troubleScore(a) || b.lastAt - a.lastAt);
+  const words = [...summaries.values()].filter(word => !focused || troubleScore(word) > 0).sort(compareDifficulty);
   const list = $('wordList'); list.replaceChildren();
   if (!words.length) list.append(element('p', 'empty-words', totals.attempts ? 'No repeated trouble yet. Keep typing; words appear here after at least three tries and two recent troubled attempts. You can also view all practiced words.' : 'Start typing. Each word builds its own history; repeated mistakes will bring it back into the stream.'));
   else {

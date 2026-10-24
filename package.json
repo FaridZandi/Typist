@@ -5,11 +5,16 @@
   "description": "Browser-based typing and reaction practice.",
   "scripts": {
     "test": "node --test 'test/*.test.js'",
-    "test:browser": "node --test test/browser/stream.test.mjs"
+    "test:browser": "node --test test/browser/stream.test.mjs",
+    "vendor:cloud": "node scripts/vendor-cloud.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
     "jsdom": "^26.1.0"
   },
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "d3": "7.9.0",
+    "d3-cloud": "1.2.7"
+  }
 }
