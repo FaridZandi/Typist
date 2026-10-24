@@ -106,10 +106,9 @@ Clearing site data can delete it; there is no automatic off-device backup.
   preview until outside tap, close or Escape. Mouse departure closes it even
   while the slider retains focus. Details stay inside the popup.
   The ranked curve uses a logarithmic rank x-axis and linear probability y-axis.
-  It includes broad plus targeted mass after cooldown constraints. Cooldown
-  words retain their rank and exact zero probability, shown as amber hollow
-  points with gaps in the curve and a visible cooldown note;
-  unseen probability appears separately. The snapshot uses current tab history,
+  It shows the shared probability policy before cooldown exclusions, as labeled
+  in the popup. Actual draws still exclude recent words. Unseen probability
+  appears separately. The snapshot uses current tab history,
   which the next completion can change. Practice sets disable this control.
   See [policy and calibration](thinking/stream-focus.md). The existing evidence
   gate and age/clean-streak limitations remain; this does not resolve TYP-017/018.
@@ -187,7 +186,7 @@ partial-word switches, unchanged stored/exported history, reload and pending-sav
 recovery. Inspected the 390px practice UI screenshot. Safari/Firefox, physical
 mobile keyboards and assistive technology were not tested.
 
-Verification on 2026-10-23: 106 Node tests and 19 Chromium Stream tests passed.
+Verification on 2026-10-23: 106 Node tests and 21 Chromium Stream tests passed.
 Difficulty-focus tests use synthetic histories, seeded sampling and exact preview
 comparisons; desktop and 390px screenshots were inspected. See TODO Evidence for
 acceptance details and the policy document for statistical tolerance and limits.

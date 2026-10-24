@@ -354,8 +354,7 @@ test('difficulty focus live probabilities, keyboard controls and persistence pre
   const exact = await p.evaluate(async () => {
     const {wordProbabilities} = await import('/src/stream/model.js'); const {WORDS} = await import('/src/stream/words.js');
     const {StreamStore} = await import('/src/stream/storage.js'); const store = await StreamStore.open(); const history = await store.load(); store.db.close();
-    const recent = [...document.querySelectorAll('.stream-upcoming-word')].map(node => node.textContent);
-    const d = wordProbabilities(WORDS, new Map(history.words.map(row => [row.word, row])), recent, 100);
+    const d = wordProbabilities(WORDS, new Map(history.words.map(row => [row.word, row])), [], 100);
     return d.ranked.map(row => `#${row.rank} ${row.word} · ${(row.probability * 100).toFixed(2)}%`);
   });
   const labels = await p.locator('#focusRanks li').allTextContents();
@@ -429,27 +428,28 @@ test('probability plot spreads difficulty ranks logarithmically with readable ti
 });
 
 
-test('rank-two cooldown is an explained zero marker rather than a dip in the difficulty curve', async t => {
+test('preview shows the distribution before cooldown while actual sampling keeps exclusions', async t => {
   const p = await page(t);
-  const distribution = await p.evaluate(async () => {
-    const {wordProbabilities} = await import('/src/stream/model.js');
+  const result = await p.evaluate(async () => {
+    const {wordProbabilities, chooseWord} = await import('/src/stream/model.js');
     const {createFocusControl} = await import('/src/stream/focus.js');
     const summaries = new Map(['alpha', 'beta', 'gamma'].map(word => [word, {attempts: 3, recent: [{clean: false}, {clean: false}, {clean: false}]}]));
-    const d = wordProbabilities(['alpha', 'beta', 'gamma', 'unseen'], summaries, ['beta'], 50);
-    createFocusControl(document.getElementById('focusControl'), 50, () => {})(d, false);
-    return d.ranked;
+    const vocabulary = ['alpha', 'beta', 'gamma', 'unseen'];
+    const actual = wordProbabilities(vocabulary, summaries, ['beta'], 50);
+    const preview = wordProbabilities(vocabulary, summaries, [], 50);
+    createFocusControl(document.getElementById('focusControl'), 50, () => {})(preview, false);
+    const draws = Array.from({length: 1000}, (_, i) => chooseWord(vocabulary, summaries, ['beta'], () => i / 1000, 50).word);
+    return {actual: actual.ranked, preview: preview.ranked, draws};
   });
-  assert.equal(distribution[1].rank, 2); assert.equal(distribution[1].word, 'beta');
-  assert.equal(distribution[1].probability, 0);
-  assert.ok(distribution[0].probability > 0 && distribution[2].probability > 0);
+  assert.equal(result.actual[1].word, 'beta'); assert.equal(result.actual[1].probability, 0);
+  assert.ok(result.preview.every(row => row.probability > 0));
+  assert.ok(result.preview[0].probability > result.preview[1].probability && result.preview[1].probability > result.preview[2].probability);
+  assert.equal(result.draws.includes('beta'), false);
   await p.locator('#difficultyFocus').focus();
-  assert.match(await p.locator('#focusCooldown').textContent(), /1 recently drawn word cooling down.*0%/);
-  assert.equal(await p.locator('#focusPlot .focus-cooldown').count(), 1);
-  assert.match(await p.locator('#focusPlot .focus-cooldown title').textContent(), /#2 beta: 0.00%.*cooling down/);
-  assert.equal(await p.locator('#focusPlot .focus-cooldown').getAttribute('cy'), '136');
+  assert.match(await p.locator('#focusPreview').textContent(), /before cooldown/);
+  assert.equal(await p.locator('#focusCooldown, .focus-cooldown').count(), 0);
   const curve = await p.locator('#focusPlot .focus-curve').getAttribute('d');
-  assert.equal((curve.match(/M/g) || []).length, 2); assert.equal(curve.includes('L'), false);
-  assert.equal(await p.locator('#focusPlot .focus-candidate').count(), 2);
-  await p.locator('#focusPreview').screenshot({path: '/tmp/typist-cooldown-plot.png'});
-  assert.match(await p.locator('#focusRanks li').nth(1).textContent(), /#2 beta · 0.00% · cooldown/);
+  assert.equal((curve.match(/M/g) || []).length, 1); assert.equal((curve.match(/L/g) || []).length, 2);
+  assert.match(await p.locator('#focusRanks li').nth(1).textContent(), new RegExp(`#2 beta · ${(result.preview[1].probability * 100).toFixed(2)}%`));
+  await p.locator('#focusPreview').screenshot({path: '/tmp/typist-before-cooldown.png'});
 });

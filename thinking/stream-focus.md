@@ -24,7 +24,7 @@ optima: a clear focus change while protecting discovery and ordinary practice.
 Exclude the last five generated words before constructing B and H. If all
 candidates are excluded, release only the least recently generated candidate.
 If unseen words exist but all are excluded, release the oldest unseen word to
-preserve the discovery floor; the preview explicitly explains this exception.
+preserve the discovery floor.
 A one-word pool necessarily repeats. Larger pools cannot be guaranteed a finite
 maximum waiting time by a stochastic sampler, but every eligible word has
 positive probability and cooldown prevents immediate repeated hard-word loops.
@@ -32,10 +32,12 @@ positive probability and cooldown prevents immediate repeated hard-word loops.
 Display all practiced vocabulary words sorted by trouble score descending,
 then ASCII alphabetical order. Sparse/clean evidence scores zero and is labeled
 “no established trouble”, not asserted to be a reliable difficulty estimate.
-Cooldown words keep their rank and show zero probability as amber hollow
-markers. The eligible-word curve breaks at these ranks, with a visible cooldown
-legend, so temporary exclusions do not look like dips in the rank weighting. The y value is the
-full marginal P(w), never the score or H alone. Rank uses a logarithmic x-axis
+At the user's request, the plot evaluates the same probability calculation
+with an empty recent-word list: a projection before cooldown, explicitly labeled
+in the popup. It shows a continuous curve without temporary exclusions; word
+values and unseen mass all use that same projection. Actual draws retain the
+last-five exclusion policy above. The y value is the full marginal P(w) of this
+projection, never the score or H alone. Rank uses a logarithmic x-axis
 with 1–2–5 ticks and the final rank, spreading out the hardest words; probability
 remains linear. Mouse departure dismisses the popup even with slider focus,
 while keyboard focus and touch preview remain available. Values round to two decimals
@@ -45,8 +47,9 @@ An empty history has no rank curve and 100% unseen mass. An exhausted unseen
 pool shows 0% discovery. A singleton is a point. The scrollable ranked list
 provides every word/value without needing a mouse tooltip.
 
-The snapshot is exact for current tab summaries, preference and recent draws;
-it is not a forecast of the next completion's unknown outcome. Completion can
+The preview uses current tab summaries and preference before cooldown; it is
+not the effective next-draw distribution or a forecast of the next completion's
+unknown outcome. Completion can
 change summaries before the next draw. Already-buffered words remain unchanged.
 Changing focus never records a word, resets the renderer or replaces the queue.
 Keyboard focus on the control preserves the current attempt; normal long-pause

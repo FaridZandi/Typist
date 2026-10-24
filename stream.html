@@ -15,12 +15,11 @@
         <div class="focus-rail"><input id="difficultyFocus" type="range" min="0" max="100" step="1" value="50" aria-describedby="focusStatus" aria-controls="focusPreview"></div>
         <div class="focus-endpoints"><span>Explore</span><span>Difficult words</span></div>
         <section id="focusPreview" class="focus-preview" aria-label="Word selection probabilities" hidden>
-          <div class="focus-heading"><strong>Next generated word · snapshot</strong><button id="closeFocus" type="button" aria-label="Close probability preview">×</button></div>
+          <div class="focus-heading"><strong>Word probabilities · before cooldown</strong><button id="closeFocus" type="button" aria-label="Close probability preview">×</button></div>
           <p id="focusStatus"></p><p id="focusPersistence" role="status"></p>
           <svg id="focusPlot" viewBox="0 0 420 184" role="img" aria-label="Selection probability by difficulty rank on a logarithmic x-axis; word values listed below"></svg>
-          <p id="focusCooldown" class="focus-cooldown-note" hidden></p>
           <p id="focusDiscovery" class="focus-discovery"></p>
-          <details><summary>Words &amp; sampling details</summary><p id="focusExplanation"></p><p>Current history and cooldown; the next completion can change these probabilities.</p><ol id="focusRanks" class="focus-ranks"></ol></details>
+          <details><summary>Words &amp; sampling details</summary><p id="focusExplanation"></p><p>Based on current history, before recent-word exclusions. Actual draws skip the last five generated words.</p><ol id="focusRanks" class="focus-ranks"></ol></details>
         </section>
       </div>
       </div>

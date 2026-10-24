@@ -40,11 +40,8 @@ export function createFocusControl(root, initial, onChange) {
     $('focusStatus').textContent = inactive ? 'Inactive · unrecorded practice set overrides this control.' : 'New draws only · buffered words stay unchanged.';
     $('focusPersistence').textContent = persisted ? '' : 'Preference could not be saved; kept for this tab only.';
     $('focusDiscovery').textContent = inactive ? 'Practice set only · recorded distribution below is inactive.' : `Unseen words: ${percent(distribution.unseenProbability)} total · ${distribution.unseenCount} remaining`;
-    $('focusExplanation').textContent = `${distribution.targetCount ? 'Supported trouble receives extra attention.' : 'No eligible supported trouble; broad exploration only.'} ${distribution.unseenCount ? 'At least 20% discovery.' : 'Unseen pool exhausted; all probability goes to practiced words.'} ${distribution.relaxed ? 'Oldest unseen word released from cooldown to preserve discovery.' : 'Last five generated words excluded where possible.'} Ranking uses supported trouble, then alphabetical ties; zero-score words have no established difficulty.`;
+    $('focusExplanation').textContent = `${distribution.targetCount ? 'Supported trouble receives extra attention.' : 'No eligible supported trouble; broad exploration only.'} ${distribution.unseenCount ? 'At least 20% discovery.' : 'Unseen pool exhausted; all probability goes to practiced words.'} Ranking uses supported trouble, then alphabetical ties; zero-score words have no established difficulty.`;
     const rows = distribution.ranked;
-    const cooling = rows.filter(row => !row.eligible);
-    $('focusCooldown').hidden = !cooling.length;
-    $('focusCooldown').textContent = cooling.length ? `○ ${cooling.length} recently drawn ${cooling.length === 1 ? 'word' : 'words'} cooling down · temporarily 0%` : '';
     const svg = $('focusPlot'); svg.replaceChildren();
     const max = Math.max(.01, ...rows.map(row => row.probability));
     const x = i => rows.length === 1 ? 220 : 52 + Math.log10(i + 1) / Math.log10(Math.max(2, rows.length)) * 348;
@@ -55,18 +52,10 @@ export function createFocusControl(root, initial, onChange) {
     }
     svg.append(svgNode('text', {x: 52, y: 13}, 'Selection probability'), svgNode('text', {x: 220, y: 174, 'text-anchor': 'middle'}, 'Difficulty rank · log scale'));
     if (rows.length) {
-      // Cooldown is a temporary exclusion, not a dip in the rank weighting.
-      // Leave gaps in the curve and mark the exact zero probabilities separately.
-      let connected = false;
-      const curve = rows.map((row, i) => {
-        if (!row.eligible) { connected = false; return ''; }
-        const command = connected ? 'L' : 'M'; connected = true;
-        return `${command}${x(i)},${y(row.probability)}`;
-      }).join(' ');
-      svg.append(svgNode('path', {class: 'focus-curve', d: curve, fill: 'none', stroke: '#0f766e', 'stroke-width': 2}));
+      svg.append(svgNode('path', {class: 'focus-curve', d: rows.map((row, i) => `${i ? 'L' : 'M'}${x(i)},${y(row.probability)}`).join(' '), fill: 'none', stroke: '#0f766e', 'stroke-width': 2}));
       rows.forEach((row, i) => {
-        const dot = svgNode('circle', {class: row.eligible ? 'focus-candidate' : 'focus-cooldown', cx: x(i), cy: y(row.probability), r: row.eligible ? (rows.length > 80 ? 2 : 3) : 4, fill: row.eligible ? '#0f766e' : '#fff', stroke: row.eligible ? '#0f766e' : '#a66b16', 'stroke-width': 1.5});
-        dot.append(svgNode('title', {}, `#${row.rank} ${row.word}: ${percent(row.probability)}${row.eligible ? '' : ' · cooling down after a recent draw'}`)); svg.append(dot);
+        const dot = svgNode('circle', {class: 'focus-candidate', cx: x(i), cy: y(row.probability), r: rows.length > 80 ? 2 : 3, fill: '#0f766e', stroke: '#0f766e', 'stroke-width': 1.5});
+        dot.append(svgNode('title', {}, `#${row.rank} ${row.word}: ${percent(row.probability)}`)); svg.append(dot);
       });
       // 1–2–5 ticks expose the log spacing; omit near-end ticks to keep labels apart.
       const ticks = [1];
@@ -84,7 +73,7 @@ export function createFocusControl(root, initial, onChange) {
     } else svg.append(svgNode('text', {x: 220, y: 80, 'text-anchor': 'middle'}, 'No practiced words yet'));
     $('focusRanks').replaceChildren(...rows.map(row => {
       const item = document.createElement('li');
-      item.textContent = `#${row.rank} ${row.word} · ${percent(row.probability)}${row.eligible ? '' : ' · cooldown'}${row.reliable ? '' : ' · no established trouble'}`;
+      item.textContent = `#${row.rank} ${row.word} · ${percent(row.probability)}${row.reliable ? '' : ' · no established trouble'}`;
       return item;
     }));
   };

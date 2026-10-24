@@ -19,7 +19,8 @@ let focusPersisted = true;
 const renderFocusControl = createFocusControl($('focusControl'), focusPreference, value => {
   focusPreference = value; focusPersisted = saveFocus(preferenceStorage, value); renderFocus();
 });
-function renderFocus() { renderFocusControl(wordProbabilities(WORDS, summaries, recentDraws, focusPreference), Boolean(practiceWords.size), focusPersisted); }
+// Preview the policy before recent-word exclusions; real draws retain cooldown.
+function renderFocus() { renderFocusControl(wordProbabilities(WORDS, summaries, [], focusPreference), Boolean(practiceWords.size), focusPersisted); }
 const percentage = (clean, count) => count ? `${Math.round(clean / count * 100)}%` : '—';
 const element = (tag, className, text) => { const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined) node.textContent = text; return node; };
 
