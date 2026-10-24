@@ -328,3 +328,62 @@ for (const failure of [false, true]) test(`entering practice preserves a normal 
   for (let n = 0; n < 3; n++) await word(p);
   assert.deepEqual(contents(await data(p)), contents(saved));
 });
+
+test('difficulty focus live probabilities, keyboard controls and persistence preserve the active stream', async t => {
+  const p = await page(t); await p.addInitScript(() => { Math.random = () => .95; }); await hardWords(p);
+  const before = contents(await data(p));
+  await p.locator('#streamInput').focus();
+  const expected = await p.locator('#currentWordAccessible').textContent();
+  await p.keyboard.type(expected[0]);
+  const track = await p.locator('#streamText').evaluate(node => ({html: node.innerHTML, transform: node.style.transform}));
+  await p.locator('#difficultyFocus').focus();
+  assert.equal(await p.locator('#focusPreview').isVisible(), true);
+  await p.keyboard.press('Home');
+  const low = await p.locator('#focusRanks').textContent();
+  await p.keyboard.press('End');
+  assert.equal(await p.locator('#difficultyFocus').inputValue(), '100');
+  assert.notEqual(await p.locator('#focusRanks').textContent(), low);
+  assert.match(await p.locator('#focusRanks').textContent(), /#1 practice · \d+\.\d{2}%/);
+  assert.match(await p.locator('#focusDiscovery').textContent(), /Unseen words:/);
+  const exact = await p.evaluate(async () => {
+    const {wordProbabilities} = await import('/src/stream/model.js'); const {WORDS} = await import('/src/stream/words.js');
+    const {StreamStore} = await import('/src/stream/storage.js'); const store = await StreamStore.open(); const history = await store.load(); store.db.close();
+    const recent = [...document.querySelectorAll('.stream-upcoming-word')].map(node => node.textContent);
+    const d = wordProbabilities(WORDS, new Map(history.words.map(row => [row.word, row])), recent, 100);
+    return d.ranked.map(row => `#${row.rank} ${row.word} · ${(row.probability * 100).toFixed(2)}%`);
+  });
+  const labels = await p.locator('#focusRanks li').allTextContents();
+  exact.forEach((label, i) => assert.ok(labels[i].startsWith(label)));
+  await p.screenshot({path: '/tmp/typist-focus-desktop.png', fullPage: true});
+  assert.deepEqual(await p.locator('#streamText').evaluate(node => ({html: node.innerHTML, transform: node.style.transform})), track);
+  assert.deepEqual(contents(await data(p)), before);
+  await p.keyboard.press('ArrowLeft'); assert.equal(await p.locator('#difficultyFocus').inputValue(), '99');
+  await p.keyboard.press('Escape'); assert.equal(await p.locator('#focusPreview').isVisible(), false);
+  await p.locator('#streamInput').focus(); await p.keyboard.type(expected.slice(1)); await p.keyboard.press('Space');
+  await p.waitForFunction(() => document.getElementById('saveState').textContent === 'All words saved');
+  const after = await data(p); const recorded = after.attempts.find(row => !before.attempts.some(old => old.id === row.id)); assert.equal(recorded.typed, expected); assert.notEqual(recorded.executionMs, null);
+  await p.reload(); await p.waitForFunction(() => !document.getElementById('streamInput').disabled);
+  assert.equal(await p.locator('#difficultyFocus').inputValue(), '99');
+  await p.locator('#focusControl').hover(); assert.equal(await p.locator('#focusPreview').isVisible(), true);
+  await p.locator('h1').hover(); assert.equal(await p.locator('#focusPreview').isVisible(), false);
+});
+
+test('touch preview pins and dismisses on narrow screens; practice override disables focus without data', async t => {
+  const context = await browser.newContext({viewport: {width: 390, height: 844}, hasTouch: true}); t.after(() => context.close());
+  const p = await context.newPage(); await p.addInitScript(() => { Math.random = () => .95; }); await p.goto(origin + '/stream.html');
+  await p.waitForFunction(() => !document.getElementById('streamInput').disabled); await hardWords(p);
+  const before = contents(await data(p));
+  await p.locator('#previewFocus').tap(); assert.equal(await p.locator('#focusPreview').isVisible(), true);
+  await p.locator('#difficultyFocus').evaluate(node => { node.value = 100; node.dispatchEvent(new Event('input', {bubbles: true})); });
+  const bounds = await p.locator('#focusPreview').boundingBox(); assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= 390);
+  await p.screenshot({path: '/tmp/typist-focus-mobile.png', fullPage: true});
+  assert.equal(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, JSON.stringify(await p.evaluate(() => [...document.querySelectorAll('*')].filter(e => e.getBoundingClientRect().right > innerWidth).map(e => [e.tagName, e.id, e.className, e.getBoundingClientRect().right]))));
+  await p.locator('#closeFocus').tap(); assert.equal(await p.locator('#focusPreview').isVisible(), false);
+  await p.locator('#previewFocus').tap(); await p.locator('h1').tap(); assert.equal(await p.locator('#focusPreview').isVisible(), false);
+  await p.getByRole('button', {name: 'Practice practice only', exact: true}).click();
+  assert.equal(await p.locator('#difficultyFocus').isDisabled(), true);
+  assert.match(await p.locator('#focusStatus').textContent(), /Inactive/);
+  await word(p); await preview(p, ['practice']); assert.deepEqual(contents(await data(p)), before);
+  await p.locator('#clearPractice').click(); assert.equal(await p.locator('#difficultyFocus').isDisabled(), false);
+  assert.equal(await p.locator('#difficultyFocus').inputValue(), '100');
+});

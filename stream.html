@@ -10,6 +10,19 @@
     <section class="practice-panel" aria-labelledby="app-title">
       <header class="top-bar"><div><p class="eyebrow">Continuous practice</p><h1 id="app-title">Word stream</h1><p>One word leads to the next.</p></div><nav class="button-row" aria-label="Practice modes"><a class="secondary-link" href="index.html">Typing test</a><a class="secondary-link" href="reaction.html">Reaction mode</a></nav></header>
       <div class="stream-summary" aria-label="Stream statistics"><div><span>Words today</span><strong id="todayWords">0</strong></div><div><span>Clean today</span><strong id="todayClean">—</strong></div><div><span>Words to revisit</span><strong id="focusCount">0</strong></div><div><span>Lifetime words</span><strong id="allWords">0</strong></div></div>
+      <div id="focusControl" class="stream-focus-control">
+        <div class="focus-heading"><label for="difficultyFocus">Difficulty focus <strong id="focusValue"></strong></label><button id="previewFocus" class="secondary-button" type="button" aria-expanded="false" aria-controls="focusPreview">↗ Probabilities</button></div>
+        <div class="focus-rail"><span>Explore</span><input id="difficultyFocus" type="range" min="0" max="100" step="1" value="50" aria-describedby="focusStatus"><span>Difficult words</span></div>
+        <p id="focusStatus"></p><p id="focusPersistence" role="status"></p>
+        <section id="focusPreview" class="focus-preview" aria-label="Word selection probabilities" hidden>
+          <div class="focus-heading"><strong>Next generated word · snapshot</strong><button id="closeFocus" type="button" aria-label="Close probability preview">×</button></div>
+          <p>Exact with current history and draw cooldown. The next completion may change the history before drawing.</p>
+          <svg id="focusPlot" viewBox="0 0 420 184" role="img" aria-label="Selection probability by difficulty rank; word values listed below"></svg>
+          <p id="focusDiscovery" class="focus-discovery"></p>
+          <p id="focusExplanation"></p>
+          <details><summary>Ranked words &amp; probabilities</summary><ol id="focusRanks" class="focus-ranks"></ol></details>
+        </section>
+      </div>
       <section id="practiceSet" class="practice-set" aria-label="Unrecorded practice set" hidden>
         <p role="status"><strong>Practice set · attempts are not recorded.</strong></p>
         <p>Only these words will appear. Changing the set discards the current partial word. The set clears on reload.</p>
@@ -32,7 +45,7 @@
       </section>
       <details class="stream-history"><summary>Daily history <span id="historyCount"></span></summary><div id="dailyHistory"></div></details>
       <details class="stream-data"><summary>Storage &amp; backup <span id="saveState">Loading…</span></summary><div class="data-body"><p>Stored in this browser, separately from your typing tests. Lifetime word summaries stay; individual attempts keep the latest 30 days, up to 10,000. Daily history keeps one year.</p><p id="storageSize"></p><div class="data-buttons"><button id="exportStream" type="button" class="secondary-button">Export stream history</button><button id="importStream" type="button" class="secondary-button">Restore backup</button><button id="persistStream" type="button" class="secondary-button">Keep data on this device</button><input id="importFile" type="file" accept="application/json,.json" hidden></div><p id="dataNotice" role="status"></p></div></details>
-      <details class="stream-explainer"><summary>How the stream learns</summary><p>Most words come from broad practice. Up to 30% of new draws revisit words with at least three tries and two recent troubled attempts. Clean repeats gradually reduce that attention. Corrected mistakes still count. The dots show your last 20 tries, oldest to newest.</p><p>This mix deliberately changes as you practice, so overall accuracy is not a fixed difficulty test. The broad-practice rate is shown separately. Timings exclude attempts interrupted by a long pause or leaving the page. Improvement is something to observe, not a score the app promises.</p></details>
+      <details class="stream-explainer"><summary>How the stream learns</summary><p>Difficulty focus varies targeted draws from 0% to 60% (30% by default), revisiting words with at least three tries and two recent troubled attempts. Clean repeats gradually reduce that attention. Corrected mistakes still count. The dots show your last 20 tries, oldest to newest.</p><p>This mix deliberately changes as you practice, so overall accuracy is not a fixed difficulty test. The broad-practice rate is shown separately. Timings exclude attempts interrupted by a long pause or leaving the page. Improvement is something to observe, not a score the app promises.</p></details>
     </section>
   </main>
   <script type="module" src="src/stream/boot.js"></script>

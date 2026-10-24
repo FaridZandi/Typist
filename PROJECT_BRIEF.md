@@ -1,6 +1,6 @@
 # Typist — agent orientation
 
-Last verified: **2026-10-18** (Stream practice-set source review, Node and Chromium checks; baseline orientation reviewed 2026-10-11).
+Last verified: **2026-10-23** (difficulty-focus policy and UI; baseline orientation reviewed 2026-10-11).
 Read [AGENTS.md](AGENTS.md) and the canonical [TODO.md](TODO.md) before work.
 This brief is orientation; task status and acceptance criteria live in TODO.
 
@@ -64,7 +64,9 @@ use existing installations when available. No lint/build/deploy script is define
 - Reaction: `src/reaction/main.js` wires targeting, key statistics, metrics,
   metronome, charts and keyboard views. Its config/storage modules own its data.
 - Stream: `src/stream/boot.js` owns input, queue and recovery UI; `model.js` owns
-  attempts and sampling, `render.js` owns continuous motion, `storage.js` owns
+  attempts and the shared sampling/preview probability calculation, `focus.js` owns
+  the difficulty control and its separate localStorage preference, `render.js` owns
+  continuous motion, `storage.js` owns
   IndexedDB transactions/backup, and `words.js` owns versioned vocabulary.
 - Shared: `src/shared/keyboard-layout.js` and `keyboard-map.js` own Dvorak
   rendering and movement classification. Stream reuses `src/alignment.js`.
@@ -94,6 +96,17 @@ Clearing site data can delete it; there is no automatic off-device backup.
   confirms replacement, downloads current data first, then reloads. It does not
   deeply validate every record schema; rollback can also fail under storage
   restrictions ([implementation](src/data-portability.js)). It excludes IndexedDB.
+- Stream preference `typist-stream-focus-v1` in localStorage stores only difficulty
+  focus (0–100, default 50), separately from performance history. It is excluded
+  from Stream backups; the generic Typing/Reaction localStorage export includes
+  it by prefix. A denied write keeps the preference in this tab with a notice.
+  The control changes only new draws and preserves partial input and track motion.
+  Hover/focus previews probabilities; the button pins the preview for touch.
+  The ranked curve includes broad plus targeted mass after cooldown constraints;
+  unseen probability appears separately. The snapshot uses current tab history,
+  which the next completion can change. Practice sets disable this control.
+  See [policy and calibration](thinking/stream-focus.md). The existing evidence
+  gate and age/clean-streak limitations remain; this does not resolve TYP-017/018.
 - Stream database `typist-word-stream`, schema 1: `words`, `attempts`, `days`,
   `meta`. Completed words update all stores atomically with ID deduplication.
   Lifetime word summaries include the last 20 outcomes; audit attempts retain
@@ -129,7 +142,7 @@ description](README.md#the-debrief) records the resulting visual approach.
 Current decisions: current-word-only editing and Space realignment
 ([roadmap](thinking/roadmap.md)); one finding chosen by an evidence ladder
 ([README](README.md#the-finding-ladder), [finding.js](src/finding.js)); Stream
-separate from timed history with 70/30 broad/targeted draws when eligible,
+separate from timed history with adjustable 0–60% targeted draws (30% default),
 corrected mistakes counted, and interrupted word timing excluded
 ([stream-v1](thinking/stream-v1.md), [model](src/stream/model.js)).
 
@@ -167,6 +180,11 @@ including keyboard practice selection, exclusive buffered sampling, removal/rese
 partial-word switches, unchanged stored/exported history, reload and pending-save
 recovery. Inspected the 390px practice UI screenshot. Safari/Firefox, physical
 mobile keyboards and assistive technology were not tested.
+
+Verification on 2026-10-23: 106 Node tests and 19 Chromium Stream tests passed.
+Difficulty-focus tests use synthetic histories, seeded sampling and exact preview
+comparisons; desktop and 390px screenshots were inspected. See TODO Evidence for
+acceptance details and the policy document for statistical tolerance and limits.
 
 ## Maintenance
 

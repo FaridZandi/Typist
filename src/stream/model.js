@@ -32,17 +32,60 @@ export function troubleScore(word) {
   return (misses + 1) / (word.recent.length + 4);
 }
 
-export function chooseWord(vocabulary, summaries, recent = [], random = Math.random) {
-  let pool = vocabulary.filter(word => !recent.slice(-5).includes(word));
-  if (!pool.length) pool = vocabulary;
-  const targets = pool.filter(word => troubleScore(summaries.get(word)) > 0);
-  if (targets.length && random() < 0.3) {
-    const total = targets.reduce((sum, word) => sum + troubleScore(summaries.get(word)), 0);
-    let position = random() * total;
-    for (const word of targets) { position -= troubleScore(summaries.get(word)); if (position <= 0) return {word, source: 'targeted'}; }
-    return {word: targets.at(-1), source: 'targeted'};
+export const DEFAULT_FOCUS = 50;
+export const normalizeFocus = value => Number.isFinite(Number(value)) ? Math.max(0, Math.min(100, Number(value))) : DEFAULT_FOCUS;
+
+// Joint broad/targeted masses preserve source accounting while the plotted
+// marginal probability includes BOTH ways of selecting each word.
+export function wordProbabilities(vocabulary, summaries, recent = [], focus = DEFAULT_FOCUS) {
+  const words = [...new Set(vocabulary)];
+  const practiced = word => (summaries.get(word)?.attempts || 0) > 0;
+  const ranked = words.filter(practiced).sort((a, b) => troubleScore(summaries.get(b)) - troubleScore(summaries.get(a)) || (a < b ? -1 : a > b ? 1 : 0));
+  const cooldown = recent.slice(-5);
+  let pool = words.filter(word => !cooldown.includes(word));
+  // Release the least recently drawn candidate only when constraints demand it.
+  const oldest = candidates => [...candidates].sort((a, b) => cooldown.lastIndexOf(a) - cooldown.lastIndexOf(b))[0];
+  if (!pool.length && words.length) pool = [oldest(words)];
+  const unseen = words.filter(word => !practiced(word));
+  let relaxed = false;
+  if (unseen.length && !pool.some(word => !practiced(word))) {
+    pool.push(oldest(unseen)); relaxed = true;
   }
-  return {word: pool[Math.min(pool.length - 1, Math.floor(random() * pool.length))], source: 'broad'};
+  const eligible = new Set(pool);
+  const targets = ranked.filter(word => eligible.has(word) && troubleScore(summaries.get(word)) > 0);
+  const t = normalizeFocus(focus) / 100;
+  const alpha = targets.length ? .6 * t : 0;
+  const beta = .5 + 1.5 * t;
+  const weights = targets.map((word, index) => (index + 1) ** -beta);
+  const weightTotal = weights.reduce((a, b) => a + b, 0);
+  const targetWeights = new Map(targets.map((word, i) => [word, weights[i] / weightTotal]));
+  const newCount = pool.filter(word => !practiced(word)).length;
+  const oldCount = pool.length - newCount;
+  const newMass = newCount ? (oldCount ? .5 : 1) : 0;
+  const entries = words.map(word => {
+    const seen = practiced(word);
+    const broad = eligible.has(word) ? (1 - alpha) * (seen ? (1 - newMass) / oldCount : newMass / newCount) : 0;
+    const targeted = alpha * (targetWeights.get(word) || 0);
+    return {word, broad, targeted, probability: broad + targeted, eligible: eligible.has(word)};
+  });
+  const byWord = new Map(entries.map(entry => [entry.word, entry]));
+  return {entries, ranked: ranked.map((word, i) => ({...byWord.get(word), rank: i + 1, reliable: troubleScore(summaries.get(word)) > 0})),
+    unseenProbability: entries.filter(entry => !practiced(entry.word)).reduce((sum, entry) => sum + entry.probability, 0),
+    unseenCount: unseen.length, targetCount: targets.length, relaxed};
+}
+
+export function chooseWord(vocabulary, summaries, recent = [], random = Math.random, focus = DEFAULT_FOCUS) {
+  const {entries} = wordProbabilities(vocabulary, summaries, recent, focus);
+  let position = random();
+  // Targeted intervals first retain the established source semantics.
+  for (const source of ['targeted', 'broad']) {
+    for (const entry of entries) {
+      if (position < entry[source]) return {word: entry.word, source};
+      position -= entry[source];
+    }
+  }
+  const last = entries.findLast(entry => entry.probability > 0);
+  return last ? {word: last.word, source: last.broad > 0 ? 'broad' : 'targeted'} : null;
 }
 
 export class WordAttempt {

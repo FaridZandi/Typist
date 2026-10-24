@@ -1,7 +1,8 @@
 import {WORDS, VOCABULARY_VERSION} from './words.js';
-import {WordAttempt, addWord, addTotals, emptyTotals, chooseWord, troubleScore} from './model.js';
+import {WordAttempt, addWord, addTotals, emptyTotals, chooseWord, troubleScore, wordProbabilities} from './model.js';
 import {StreamStore, dayKey, validateBackup} from './storage.js';
 import {StreamRenderer} from './render.js';
+import {createFocusControl, readFocus, saveFocus} from './focus.js';
 
 const $ = id => document.getElementById(id);
 const input = $('streamInput');
@@ -11,6 +12,14 @@ let queue = []; let history = []; let attempt; let pending = []; let saving = fa
 let saveCount = 0; let lastKey = 0; let retained = 0;
 const recentDraws = [];
 let practiceWords = new Set();
+let preferenceStorage;
+try { preferenceStorage = window.localStorage; } catch { /* Storage may be denied. */ }
+let focusPreference = readFocus(preferenceStorage);
+let focusPersisted = true;
+const renderFocusControl = createFocusControl($('focusControl'), focusPreference, value => {
+  focusPreference = value; focusPersisted = saveFocus(preferenceStorage, value); renderFocus();
+});
+function renderFocus() { renderFocusControl(wordProbabilities(WORDS, summaries, recentDraws, focusPreference), Boolean(practiceWords.size), focusPersisted); }
 const percentage = (clean, count) => count ? `${Math.round(clean / count * 100)}%` : '—';
 const element = (tag, className, text) => { const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined) node.textContent = text; return node; };
 
@@ -20,7 +29,7 @@ function appendWord() {
     queue.push({word: words[Math.floor(Math.random() * words.length)], source: 'practice'});
     return;
   }
-  const prompt = chooseWord(WORDS, summaries, recentDraws); queue.push(prompt); recentDraws.push(prompt.word); if (recentDraws.length > 8) recentDraws.shift(); }
+  const prompt = chooseWord(WORDS, summaries, recentDraws, Math.random, focusPreference); queue.push(prompt); recentDraws.push(prompt.word); if (recentDraws.length > 8) recentDraws.shift(); }
 function newAttempt() { attempt = new WordAttempt(queue[0], VOCABULARY_VERSION); }
 function renderPrompt() {
   renderer.render(queue[0].word, attempt.typed, queue.slice(1));
@@ -44,12 +53,13 @@ function setPractice(words) {
     remove.addEventListener('click', () => { setPractice([...practiceWords].filter(item => item !== word)); input.focus(); });
     return remove;
   }));
-  renderPrompt(); renderSaving();
+  renderPrompt(); renderSaving(); renderFocus();
   $('practiceStatus').textContent = practiceWords.size ? 'Practice set ready · attempts are not recorded' : 'Normal stream resumed';
 }
 $('clearPractice').addEventListener('click', () => { setPractice([]); input.focus(); });
 
 function renderStats() {
+  renderFocus();
   const today = days.get(dayKey(Date.now())) || emptyTotals();
   $('todayWords').textContent = today.attempts.toLocaleString(); $('todayClean').textContent = percentage(today.clean, today.attempts);
   $('allWords').textContent = totals.attempts.toLocaleString();
@@ -136,7 +146,7 @@ input.addEventListener('beforeinput', event => {
 });
 input.addEventListener('input', () => { input.value = ''; }); input.addEventListener('paste', event => event.preventDefault());
 input.addEventListener('focus', () => { $('practiceStatus').textContent = 'Type the word at the cursor'; });
-input.addEventListener('blur', () => { attempt?.suspend(); $('practiceStatus').textContent = 'Click the stream to continue'; });
+input.addEventListener('blur', event => { if (!$('focusControl').contains(event.relatedTarget)) attempt?.suspend(); $('practiceStatus').textContent = 'Click the stream to continue'; });
 document.addEventListener('visibilitychange', () => { if (document.hidden) attempt?.suspend(); });
 window.addEventListener('beforeunload', event => { if (pending.length || restoring) { event.preventDefault(); event.returnValue = ''; } });
 $('wordFilter').addEventListener('change', renderStats);

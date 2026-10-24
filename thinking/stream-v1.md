@@ -18,13 +18,12 @@ needs no button. Inter-key gaps over five seconds and gaps across blur/visibilit
 changes do not contribute to active typing time. Interrupted attempts retain
 their accuracy information but are excluded from word speed comparisons.
 
-The vocabulary is a versioned, local, mixed English word list. When enough
-evidence exists, each new draw has a 30% chance of targeting a word with at
-least three attempts and at least two troubled attempts in its last 20 tries.
-The remaining draws sample broadly. Sampling uses recent error rate with
-smoothing, avoids the last five draws, and does not label one miss a weakness.
-Clean repeats lower recent error rate and eventually remove a word from the
-target pool. Queueing means a new finding affects words after the preview.
+The vocabulary is a versioned, local, mixed English word list. Selection now
+uses the [difficulty-focus policy](stream-focus.md): a 0–60% targeted mixture
+(default 30%), with explicit unseen discovery and a live probability preview.
+The evidence gate remains at least three attempts and two troubled outcomes
+in the last 20. Queueing means new settings affect newly generated words,
+not the current word or its five buffered successors.
 
 Targeted and broad draws are recorded separately. Per-word trails show up to
 20 recent clean/troubled attempts. Overall clean rate reflects practice, not an
