@@ -9,19 +9,19 @@
   <main class="app-shell stream-shell">
     <section class="practice-panel" aria-labelledby="app-title">
       <header class="top-bar"><div><p class="eyebrow">Continuous practice</p><h1 id="app-title">Word stream</h1><p>One word leads to the next.</p></div><nav class="button-row" aria-label="Practice modes"><a class="secondary-link" href="index.html">Typing test</a><a class="secondary-link" href="reaction.html">Reaction mode</a></nav></header>
-      <div class="stream-summary" aria-label="Stream statistics"><div><span>Words today</span><strong id="todayWords">0</strong></div><div><span>Clean today</span><strong id="todayClean">—</strong></div><div><span>Words to revisit</span><strong id="focusCount">0</strong></div><div><span>Lifetime words</span><strong id="allWords">0</strong></div></div>
+      <div class="stream-summary" aria-label="Stream statistics"><div><span>Words today</span><strong id="todayWords">0</strong></div><div><span>Clean today</span><strong id="todayClean">—</strong></div><div><span>Words to revisit</span><strong id="focusCount">0</strong></div><div><span>Lifetime words</span><strong id="allWords">0</strong></div>
       <div id="focusControl" class="stream-focus-control">
-        <div class="focus-heading"><label for="difficultyFocus">Difficulty focus <strong id="focusValue"></strong></label><button id="previewFocus" class="secondary-button" type="button" aria-expanded="false" aria-controls="focusPreview">↗ Probabilities</button></div>
-        <div class="focus-rail"><span>Explore</span><input id="difficultyFocus" type="range" min="0" max="100" step="1" value="50" aria-describedby="focusStatus"><span>Difficult words</span></div>
-        <p id="focusStatus"></p><p id="focusPersistence" role="status"></p>
+        <label for="difficultyFocus">Difficulty focus</label>
+        <div class="focus-rail"><input id="difficultyFocus" type="range" min="0" max="100" step="1" value="50" aria-describedby="focusStatus" aria-controls="focusPreview"></div>
+        <div class="focus-endpoints"><span>Explore</span><span>Difficult words</span></div>
         <section id="focusPreview" class="focus-preview" aria-label="Word selection probabilities" hidden>
           <div class="focus-heading"><strong>Next generated word · snapshot</strong><button id="closeFocus" type="button" aria-label="Close probability preview">×</button></div>
-          <p>Exact with current history and draw cooldown. The next completion may change the history before drawing.</p>
+          <p id="focusStatus"></p><p id="focusPersistence" role="status"></p>
           <svg id="focusPlot" viewBox="0 0 420 184" role="img" aria-label="Selection probability by difficulty rank; word values listed below"></svg>
           <p id="focusDiscovery" class="focus-discovery"></p>
-          <p id="focusExplanation"></p>
-          <details><summary>Ranked words &amp; probabilities</summary><ol id="focusRanks" class="focus-ranks"></ol></details>
+          <details><summary>Words &amp; sampling details</summary><p id="focusExplanation"></p><p>Current history and cooldown; the next completion can change these probabilities.</p><ol id="focusRanks" class="focus-ranks"></ol></details>
         </section>
+      </div>
       </div>
       <section id="practiceSet" class="practice-set" aria-label="Unrecorded practice set" hidden>
         <p role="status"><strong>Practice set · attempts are not recorded.</strong></p>

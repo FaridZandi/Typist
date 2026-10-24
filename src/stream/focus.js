@@ -12,15 +12,15 @@ export function saveFocus(storage, value) {
 
 export function createFocusControl(root, initial, onChange) {
   const $ = id => root.querySelector('#' + id);
-  const slider = $('difficultyFocus'), popup = $('focusPreview'), toggle = $('previewFocus');
+  const slider = $('difficultyFocus'), popup = $('focusPreview');
   let pinned = false;
-  const show = () => { popup.hidden = false; toggle.setAttribute('aria-expanded', 'true'); };
-  const hide = () => { pinned = false; popup.hidden = true; toggle.setAttribute('aria-expanded', 'false'); };
+  const show = () => { popup.hidden = false; };
+  const hide = () => { pinned = false; popup.hidden = true; };
   root.addEventListener('pointerenter', event => { if (event.pointerType !== 'touch') show(); });
   root.addEventListener('pointerleave', () => { if (!pinned && !root.contains(document.activeElement)) hide(); });
   root.addEventListener('focusin', show);
   root.addEventListener('focusout', event => { if (!pinned && !root.contains(event.relatedTarget)) hide(); });
-  toggle.addEventListener('click', () => { if (pinned) hide(); else { pinned = true; show(); } });
+  root.addEventListener('pointerdown', event => { if (event.pointerType === 'touch' && !popup.contains(event.target)) { pinned = true; show(); } });
   $('closeFocus').addEventListener('click', hide);
   document.addEventListener('pointerdown', event => { if (!root.contains(event.target)) hide(); });
   document.addEventListener('keydown', event => { if (event.key === 'Escape') hide(); });
@@ -35,7 +35,6 @@ export function createFocusControl(root, initial, onChange) {
   };
   return (distribution, inactive, persisted = true) => {
     const value = Number(slider.value);
-    $('focusValue').textContent = `${value} · ${value < 34 ? 'Explore' : value > 66 ? 'Concentrate' : 'Balanced'}`;
     slider.setAttribute('aria-valuetext', `${value} percent focus, ${value < 34 ? 'exploration' : value > 66 ? 'difficult words' : 'balanced'}`);
     slider.disabled = inactive;
     $('focusStatus').textContent = inactive ? 'Inactive · unrecorded practice set overrides this control.' : 'New draws only · buffered words stay unchanged.';

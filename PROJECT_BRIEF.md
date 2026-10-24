@@ -101,7 +101,9 @@ Clearing site data can delete it; there is no automatic off-device backup.
   from Stream backups; the generic Typing/Reaction localStorage export includes
   it by prefix. A denied write keeps the preference in this tab with a notice.
   The control changes only new draws and preserves partial input and track motion.
-  Hover/focus previews probabilities; the button pins the preview for touch.
+  The compact slider sits in the statistics row without a separate preview button
+  or card. Hover/focus previews probabilities; touching the slider pins the
+  preview until outside tap, close or Escape. Details stay inside the popup.
   The ranked curve includes broad plus targeted mass after cooldown constraints;
   unseen probability appears separately. The snapshot uses current tab history,
   which the next completion can change. Practice sets disable this control.
