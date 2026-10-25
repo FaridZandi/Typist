@@ -1,6 +1,7 @@
 import '../../vendor/d3-7.9.0.min.js';
 import '../../vendor/d3-cloud-1.2.7.js';
 import {compareDifficulty, troubleScore} from './model.js';
+import {CloudLayoutCache} from './cloud-layout-cache.js';
 
 const d3 = globalThis.d3;
 const FONT = 'sans-serif';
@@ -15,6 +16,9 @@ export class HardWordCloud {
     this.words = [];
     this.signature = '';
     this.generation = 0;
+    let storage;
+    try { storage = sessionStorage; } catch { /* Optional visual state. */ }
+    this.cache = new CloudLayoutCache(storage);
     this.motion = matchMedia('(prefers-reduced-motion: reduce)');
     this.motion.addEventListener('change', () => this.layout());
     this.observer = new ResizeObserver(() => this.layout());
@@ -69,15 +73,27 @@ export class HardWordCloud {
       context.font = `600 ${word.size}px ${FONT}`;
       fit = Math.min(fit, (width - 40) / context.measureText(word.text).width);
     }
+    const layoutKey = `${width}x${height}`;
+    const homes = this.cache.get(layoutKey);
+    const order = new Map([...homes.keys()].map((word, i) => [word, i]));
     let seed = 1729;
+    const hash = text => { let value = 2166136261; for (const letter of text) value = Math.imul(value ^ letter.charCodeAt(0), 16777619); return value >>> 0; };
     const random = () => { seed = (1664525 * seed + 1013904223) >>> 0; return seed / 2 ** 32; };
     this.pending = d3.layout.cloud().size([width, height]).words(words.map(word => ({...word})))
       .font(FONT).fontWeight(600).fontSize(word => word.size * fit).padding(5).rotate(0)
-      .random(random).timeInterval(8).on('end', (placed, bounds) => {
+      .random(random).sort((a, b) => (order.get(a.text) ?? Infinity) - (order.get(b.text) ?? Infinity) || (a.text < b.text ? -1 : a.text > b.text ? 1 : 0))
+      .initialPosition(word => {
+        // Home positions and spiral direction belong to the word, not its rank.
+        seed = hash(word.text);
+        const previous = homes.get(word.text);
+        if (previous) return [previous.x, previous.y];
+        return [Math.round(width * (.15 + .7 * random())), Math.round(height * (.25 + .5 * random()))];
+      }).timeInterval(8).on('end', placed => {
         if (generation !== this.generation) return;
         this.placedCount = placed.length; this.updateCaption();
-        const offsetX = bounds ? width / 2 + (width >> 1) - (bounds[0].x + bounds[1].x) / 2 : width / 2;
-        const offsetY = bounds ? height / 2 + (height >> 1) - (bounds[0].y + bounds[1].y) / 2 : height / 2;
+        const offsetX = width >> 1;
+        const offsetY = height >> 1;
+        this.cache.set(layoutKey, placed.map(word => ({text: word.text, x: word.x + offsetX, y: word.y + offsetY})));
         this.svg.attr('aria-label', `${placed.length} hard words, sized by difficulty rank. ${placed.slice(0, 5).map(word => `${word.text}, rank ${word.rank}`).join('; ')}. Full history and practice actions in the table below.`);
         const selection = this.svg.selectAll('text').data(placed, word => word.text);
         const exits = selection.exit();

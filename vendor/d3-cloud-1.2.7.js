@@ -1,3 +1,4 @@
+// Typist stability hooks: initialPosition/sort. Regenerate with npm run vendor:cloud.
 (function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g=(g.d3||(g.d3 = {}));g=(g.layout||(g.layout = {}));g.cloud = f()}})(function(){var define,module,exports;return (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
 // Word cloud layout by Jason Davies, https://www.jasondavies.com/wordcloud/
 // Algorithm due to Jonathan Feinberg, https://s3.amazonaws.com/static.mrfeinberg.com/bv_ch03.pdf
@@ -29,6 +30,8 @@ module.exports = function() {
       event = dispatch("word", "end"),
       timer = null,
       random = Math.random,
+      initialPosition = null,
+      sort = function(a, b) { return b.size - a.size; },
       cloud = {},
       canvas = cloudCanvas;
 
@@ -52,7 +55,7 @@ module.exports = function() {
           d.size = ~~fontSize.call(this, d, i);
           d.padding = padding.call(this, d, i);
           return d;
-        }).sort(function(a, b) { return b.size - a.size; });
+        }).sort(sort);
 
     if (timer) clearInterval(timer);
     timer = setInterval(step, 0);
@@ -64,8 +67,9 @@ module.exports = function() {
       var start = Date.now();
       while (Date.now() - start < timeInterval && ++i < n && timer) {
         var d = data[i];
-        d.x = (size[0] * (random() + .5)) >> 1;
-        d.y = (size[1] * (random() + .5)) >> 1;
+        const startPosition = initialPosition && initialPosition(d, size);
+        d.x = startPosition ? startPosition[0] : (size[0] * (random() + .5)) >> 1;
+        d.y = startPosition ? startPosition[1] : (size[1] * (random() + .5)) >> 1;
         cloudSprite(contextAndRatio, d, data, i);
         if (d.hasText && place(board, d, bounds)) {
           tags.push(d);
@@ -132,7 +136,7 @@ module.exports = function() {
       if (tag.x + tag.x0 < 0 || tag.y + tag.y0 < 0 ||
           tag.x + tag.x1 > size[0] || tag.y + tag.y1 > size[1]) continue;
       // TODO only check for collisions within current bounds.
-      if (!bounds || collideRects(tag, bounds)) {
+      if (initialPosition || !bounds || collideRects(tag, bounds)) {
         if (!cloudCollide(tag, board, size[0])) {
           var sprite = tag.sprite,
               w = tag.width >> 5,
@@ -203,6 +207,14 @@ module.exports = function() {
 
   cloud.random = function(_) {
     return arguments.length ? (random = _, cloud) : random;
+  };
+
+  cloud.initialPosition = function(_) {
+    return arguments.length ? (initialPosition = _, cloud) : initialPosition;
+  };
+
+  cloud.sort = function(_) {
+    return arguments.length ? (sort = _, cloud) : sort;
   };
 
   cloud.on = function() {

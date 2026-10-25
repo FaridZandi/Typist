@@ -560,3 +560,56 @@ test('dense word cloud is bounded and readable on desktop/mobile, and reduced mo
   await cloudClean(p, 'the', 20); await p.waitForFunction(() => !document.querySelector('#hardWordCloud text[data-word="the"]'));
   await cloudReady(p); assert.ok(await cloud.locator('text').count() <= before);
 });
+
+
+test('cloud anchors survive reloads and rank changes without repacking the whole view', async t => {
+  const p = await page(t); await seedCloud(p, 30);
+  const snapshot = () => p.locator('#hardWordCloud text').evaluateAll(nodes => Object.fromEntries(nodes.map(node => [node.dataset.word, {x: Number(node.getAttribute('x')), y: Number(node.getAttribute('y')), size: parseFloat(node.style.fontSize)}])));
+  const reload = async () => {
+    await p.reload(); await p.waitForFunction(() => !document.getElementById('streamInput').disabled); await cloudReady(p);
+  };
+  const before = await snapshot();
+  for (let i = 0; i < 3; i++) { await reload(); assert.deepEqual(await snapshot(), before); }
+  await cloudClean(p, 'about', 1);
+  await p.waitForFunction(() => document.querySelector('#hardWordCloud text[data-word="about"]')?.dataset.rank === '30'); await cloudReady(p);
+  const changed = await snapshot();
+  assert.deepEqual(Object.keys(changed).sort(), Object.keys(before).sort());
+  assert.ok(changed.about.size < before.about.size);
+  assert.deepEqual([changed.about.x, changed.about.y], [before.about.x, before.about.y]);
+  const distances = Object.keys(before).map(word => Math.hypot(changed[word].x - before[word].x, changed[word].y - before[word].y)).sort((a, b) => a - b);
+  // The previous full repack moved most words by hundreds of pixels.
+  assert.ok(distances[15] < 20, JSON.stringify(distances));
+  assert.ok(distances.at(-1) < 65, JSON.stringify(distances));
+  const overlappingPixels = await p.evaluate(() => {
+    const svg = document.querySelector('#hardWordCloud svg');
+    const [, , width, height] = svg.getAttribute('viewBox').split(' ').map(Number);
+    const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
+    const context = canvas.getContext('2d', {willReadFrequently: true});
+    context.textAlign = 'center';
+    const occupied = new Uint8Array(width * height); let overlaps = 0;
+    for (const node of svg.querySelectorAll('text')) {
+      context.clearRect(0, 0, width, height);
+      const style = getComputedStyle(node);
+      context.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+      context.fillText(node.firstChild.nodeValue, Number(node.getAttribute('x')), Number(node.getAttribute('y')));
+      const pixels = context.getImageData(0, 0, width, height).data;
+      for (let i = 0; i < occupied.length; i++) if (pixels[i * 4 + 3] > 128) { overlaps += occupied[i]; occupied[i] = 1; }
+    }
+    return overlaps;
+  });
+  assert.equal(overlappingPixels, 0);
+  for (let i = 0; i < 2; i++) { await reload(); assert.deepEqual(await snapshot(), changed); }
+  await p.locator('#hardWordCloud').screenshot({path: '/tmp/typist-cloud-stable.png'});
+  await p.setViewportSize({width: 390, height: 844});
+  await p.waitForFunction(() => Number(document.querySelector('#hardWordCloud svg').getAttribute('viewBox').split(' ')[2]) < 500); await cloudReady(p);
+  const mobile = await snapshot(); await reload(); assert.deepEqual(await snapshot(), mobile);
+  await p.setViewportSize({width: 1280, height: 900});
+  await p.waitForFunction(() => Number(document.querySelector('#hardWordCloud svg').getAttribute('viewBox').split(' ')[2]) > 500); await cloudReady(p);
+  assert.deepEqual(await snapshot(), changed);
+  const cache = await p.evaluate(() => JSON.parse(sessionStorage.getItem('typist-stream-cloud-layout-v1')));
+  assert.ok(cache.layouts.length <= 3 && cache.layouts.every(([, words]) => words.length <= 48));
+  // Denied visual storage must still allow deterministic cloud rendering.
+  await p.addInitScript(() => Object.defineProperty(window, 'sessionStorage', {get() { throw new Error('denied'); }}));
+  await reload(); const withoutStorage = await snapshot();
+  await reload(); assert.deepEqual(await snapshot(), withoutStorage);
+});

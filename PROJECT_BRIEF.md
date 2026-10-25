@@ -1,6 +1,6 @@
 # Typist — agent orientation
 
-Last verified: **2026-10-23** (live hard-word cloud, difficulty-focus policy and UI; baseline orientation reviewed 2026-10-11).
+Last verified: **2026-10-25** (stable word-cloud anchors; live cloud and difficulty-focus policy reviewed 2026-10-23; baseline orientation reviewed 2026-10-11).
 Read [AGENTS.md](AGENTS.md) and the canonical [TODO.md](TODO.md) before work.
 This brief is orientation; task status and acceptance criteria live in TODO.
 
@@ -68,7 +68,8 @@ use existing installations when available. No lint/build/deploy script is define
 - Stream: `src/stream/boot.js` owns input, queue and recovery UI; `model.js` owns
   attempts and the shared sampling/preview probability calculation, `focus.js` owns
   the difficulty control and its separate localStorage preference, `render.js` owns
-  continuous motion, `cloud.js` owns the live ranked word-cloud view, `storage.js` owns
+  continuous motion, `cloud.js` owns the live ranked word-cloud view and
+  `cloud-layout-cache.js` its optional visual anchors, `storage.js` owns
   IndexedDB transactions/backup, and `words.js` owns versioned vocabulary.
 - Shared: `src/shared/keyboard-layout.js` and `keyboard-map.js` own Dvorak
   rendering and movement classification. Stream reuses `src/alignment.js`.
@@ -78,7 +79,8 @@ use existing installations when available. No lint/build/deploy script is define
   in `reaction.html`, outside npm/lockfile ownership. Without it the history
   chart is skipped. Stream locally serves D3 **7.9.0** and d3-cloud **1.2.7**
   from `vendor/`, pinned in npm with retained licenses; D3 handles keyed animated
-  updates and d3-cloud handles word placement. Other assets use local files and
+  updates and d3-cloud handles word placement with documented optional
+  initial-position/sort hooks applied by `vendor:cloud`. Other assets use local files and
   browser APIs. No remote
   practice-data sync or telemetry integration was found in source.
 
@@ -133,12 +135,19 @@ Clearing site data can delete it; there is no automatic off-device backup.
   and the table. Font size decreases as `13 + (max - 13) / rank^0.45` (max 58px,
   42px in compact layouts); deterministic, horizontal placement limits clutter.
   D3 animates entry, exit, position and size for 420ms; reduced motion skips it.
-  Unchanged visible ranks retain their layout. Recorded outcomes, restore/retry
+  Words keep their own anchors and placement order through rank changes; local
+  collision adjustments are allowed. Unchanged ranks retain their layout.
+  Recorded outcomes, restore/retry
   and resize refresh the cloud; unrecorded practice does not affect it. The cloud
   is hidden without supported trouble. It lays out the top 48 words (24 below
   500px available width); the caption reports the displayed count when capped or
   the layout cannot fit every word. Long words scale to fit; the full table stays
-  available. It adds no stored data and uses the existing evidence/age limits.
+  available. The optional `typist-stream-cloud-layout-v1` sessionStorage cache
+  holds word names/coordinates for up to three viewport sizes, 48 words each,
+  so reloads and returning to a viewport restore placements. It is tab-scoped,
+  independent of performance history and excluded from practice backups. Denied
+  or corrupt storage falls back to deterministic homes and in-memory anchors.
+  It uses the existing evidence/age limits. See [local hooks](vendor/README.md).
 - Stream word rows offer a keyboard-accessible word button for immediate solo
   practice and Add for a deduplicated temporary set. While nonempty, the set
   replaces every current/upcoming draw. Its visible indicator says attempts are
@@ -209,6 +218,12 @@ intermediate entry/size animation, removal, unchanged layouts, practice isolatio
 single/empty states, dense desktop/mobile bounds and reduced motion; desktop
 and 390px screenshots were inspected. See TODO Evidence for
 acceptance details and the policy document for statistical tolerance and limits.
+
+Verification on 2026-10-25: 108 Node tests and 24 Chromium Stream tests passed.
+The stability regression checks repeated settled reload geometry before/after
+rank changes, limited live displacement, glyph non-overlap, mobile reload/desktop
+return, cache bounds and denied storage. Existing animation and Stream acceptance
+remain covered; synthetic desktop/mobile cloud screenshots were inspected.
 
 ## Maintenance
 
