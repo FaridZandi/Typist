@@ -1,6 +1,6 @@
 # Difficulty focus policy (TYP-023)
 
-Verified design: 2026-10-30. `wordProbabilities` in `src/stream/model.js` is the
+Verified design: 2026-10-31. `wordProbabilities` in `src/stream/model.js` is the
 single source of probabilities for the sampler, SVG/table preview and word
 cloud. The plot uses native SVG; the cloud uses the local D3/d3-cloud stack
 documented in [vendor ownership](../vendor/README.md).
@@ -49,17 +49,26 @@ pool shows 0% discovery. A singleton is a point. The scrollable ranked list
 provides every word/value without needing a mouse tooltip.
 
 The hard-word cloud receives the very same before-cooldown distribution object
-as the plot, filtered to words with supported trouble. Its font size is
-`sqrt(13^2 + (max^2 - 13^2) * min(P / 0.5, 1))`, max 58px (42px compact),
-using full vocabulary-wide P including broad and targeted mass. It does not
-renormalize probabilities among displayed words. Squared font size grows
-linearly with P until the 50% size cap, retaining a readable 13px floor;
-actual glyph area also depends on word length. Long words can uniformly scale
-the cloud down to fit. Font sizes are integer-rounded by d3-cloud. A flat
-exploration curve gives equal sizes; stronger focus increases prominence of
-the most likely words. This is visual calibration rather than a second sampling
-policy. Slider changes animate sizes while keeping cached anchors where they
-fit; tooltips show exact projected percentages to two decimals. Practice-set
+as the plot, filtered to words with supported trouble. To make concentration
+visible, font size compares full global probability P with the same word's
+exploration baseline B (the broad distribution before mixing in targeting).
+`wordProbabilities` exposes B as `baselineProbability`; this adds no sampling
+rule and does not renormalize among displayed words. With r=P/B, font size is
+`9 + (max - 9) * r^2 / (r^2 + k)`, k=(max-neutral)/(neutral-9). Neutral/max are
+28/84px desktop and 22/64px compact. Equal-to-baseline probabilities give neutral
+sizes. The squared ratio exaggerates concentration: likely words grow toward
+the maximum while less-likely words shrink toward 9px. The previous absolute
+square-root mapping hid tail changes close to its 13px floor. Size and area are
+therefore intentionally not literal probability encodings; tooltips keep the
+full projected percentage to two decimals.
+
+Long words and dense clouds get a common fit scale (including a padded text-area
+estimate at 55% of the viewport), followed by a final 9px floor. The library
+rounds sizes to integers. Slider input is coalesced to the latest value per
+animation frame with 80ms linear transitions, so it updates while dragging,
+rather than repeatedly restarting a slow easing curve. Recorded outcomes retain
+420ms animation; reduced motion skips transitions. Cached anchors stay in use,
+with local collision adjustments when the larger text needs room. Practice-set
 mode still overrides sampling and disables the control.
 
 The preview uses current tab summaries and preference before cooldown; it is

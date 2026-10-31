@@ -68,9 +68,10 @@ export function wordProbabilities(vocabulary, summaries, recent = [], focus = DE
   const newMass = newCount ? (oldCount ? .5 : 1) : 0;
   const entries = words.map(word => {
     const seen = practiced(word);
-    const broad = eligible.has(word) ? (1 - alpha) * (seen ? (1 - newMass) / oldCount : newMass / newCount) : 0;
+    const baselineProbability = eligible.has(word) ? (seen ? (1 - newMass) / oldCount : newMass / newCount) : 0;
+    const broad = (1 - alpha) * baselineProbability;
     const targeted = alpha * (targetWeights.get(word) || 0);
-    return {word, broad, targeted, probability: broad + targeted, eligible: eligible.has(word)};
+    return {word, broad, targeted, baselineProbability, probability: broad + targeted, eligible: eligible.has(word)};
   });
   const byWord = new Map(entries.map(entry => [entry.word, entry]));
   return {entries, ranked: ranked.map((word, i) => ({...byWord.get(word), rank: i + 1, reliable: troubleScore(summaries.get(word)) > 0})),

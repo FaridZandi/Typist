@@ -91,7 +91,8 @@ test('retention prunes audit records and days while keeping lifetime word summar
   const p = await page(t);
   const result = await p.evaluate(async () => {
     const {StreamStore, dayKey} = await import('/src/stream/storage.js'); const {addWord, addTotals, emptyTotals} = await import('/src/stream/model.js');
-    const store = await StreamStore.open(); const now = Date.now(); let summary, totals = emptyTotals();
+    // Noon keeps fixed-day synthetic dates away from midnight/DST duplicates.
+    const store = await StreamStore.open(); const now = new Date().setHours(12, 0, 0, 0); let summary, totals = emptyTotals();
     const records = Array.from({length: 10060}, (_, i) => ({id: 'retention-' + i, word: 'word', typed: 'word', source: 'broad', at: i < 10 ? now - 31 * 86400000 : now - i * 1000, clean: true, errors: 0, remaining: 0, corrections: 0, activeMs: 400, executionMs: 400, rules: 1, vocabulary: 'test'}));
     await store.transaction(['attempts', 'words', 'meta', 'days'], 'readwrite', async tx => {
       for (const record of records) { tx.objectStore('attempts').put(record); summary = addWord(summary, record); totals = addTotals(totals, record); }
@@ -455,7 +456,7 @@ test('preview shows the distribution before cooldown while actual sampling keeps
 });
 
 async function cloudReady(p) {
-  await p.waitForFunction(() => document.getElementById('hardWordCloud').getAttribute('aria-busy') === 'false');
+  await p.waitForFunction(() => document.getElementById('hardWordCloud').getAttribute('aria-busy') === 'false' && !document.getElementById('hardWordCloud').dataset.pending);
 }
 async function seedCloud(p, count = 2) {
   await p.evaluate(async count => {
@@ -544,7 +545,7 @@ test('dense word cloud is bounded and readable on desktop/mobile, and reduced mo
     const words = await cloud.locator('text').evaluateAll(nodes => nodes.map(node => ({word: node.dataset.word, rank: Number(node.dataset.rank), size: parseFloat(node.style.fontSize), transition: Boolean(node.__transition), box: node.getBoundingClientRect().toJSON()})));
     assert.ok(words.length >= Math.floor(cap * .7) && words.length <= cap, String(words.length));
     assert.ok(words.some(word => word.rank === 1));
-    assert.ok(words.every(word => word.size >= 12 && !word.transition));
+    assert.ok(words.every(word => word.size >= 9 && !word.transition));
     const bounds = await cloud.locator('svg').boundingBox();
     assert.ok(words.every(word => word.box.x >= bounds.x - 1 && word.box.y >= bounds.y - 1 && word.box.right <= bounds.x + bounds.width + 1 && word.box.bottom <= bounds.y + bounds.height + 1));
     const rankSizes = [...words].sort((a, b) => a.rank - b.rank).map(word => word.size);
@@ -579,7 +580,9 @@ test('cloud anchors survive reloads and rank changes without repacking the whole
   const distances = Object.keys(before).map(word => Math.hypot(changed[word].x - before[word].x, changed[word].y - before[word].y)).sort((a, b) => a - b);
   // The previous full repack moved most words by hundreds of pixels.
   assert.ok(distances[15] < 20, JSON.stringify(distances));
-  assert.ok(distances.at(-1) < 65, JSON.stringify(distances));
+  // Larger headline fonts can require one local collision adjustment.
+  assert.ok(distances.filter(distance => distance < 65).length >= distances.length * .9, JSON.stringify(distances));
+  assert.ok(distances.at(-1) < 170, JSON.stringify(distances));
   const overlappingPixels = await p.evaluate(() => {
     const svg = document.querySelector('#hardWordCloud svg');
     const [, , width, height] = svg.getAttribute('viewBox').split(' ').map(Number);
@@ -654,4 +657,58 @@ test('difficulty focus animates cloud prominence from the same probability curve
   assert.equal(new Set((await snapshot()).map(word => word.size)).size, 1);
   assert.equal(await cloud.locator('text').evaluateAll(nodes => nodes.some(node => Boolean(node.__transition))), false);
   assert.deepEqual(contents(await data(p)), saved);
+});
+
+test('held-pointer slider dragging visibly grows the head and shrinks the tail before release', async t => {
+  const p = await page(t); await seedCloud(p, 30);
+  const cloud = p.locator('#hardWordCloud');
+  await p.locator('#difficultyFocus').focus(); await p.keyboard.press('Home'); await cloudReady(p);
+  const low = await cloud.locator('text[data-rank="30"]').evaluate(node => parseFloat(getComputedStyle(node).fontSize));
+  const snapshot = async () => ({
+    head: await cloud.locator('text[data-rank="1"]').evaluate(node => parseFloat(getComputedStyle(node).fontSize)),
+    tail: await cloud.locator('text[data-rank="30"]').evaluate(node => parseFloat(getComputedStyle(node).fontSize)),
+  });
+  const history = contents(await data(p));
+  await p.locator('#streamInput').focus(); await p.keyboard.type('p');
+  const track = await p.locator('#streamText').evaluate(node => ({html: node.innerHTML, transform: node.style.transform}));
+  await p.evaluate(() => {
+    window.cloudDragHeld = false;
+    document.getElementById('difficultyFocus').addEventListener('pointerdown', () => { window.cloudDragHeld = true; });
+    document.addEventListener('pointerup', () => { window.cloudDragHeld = false; });
+  });
+  const box = await p.locator('#difficultyFocus').boundingBox();
+  const point = fraction => ({x: box.x + 8 + (box.width - 16) * fraction, y: box.y + box.height / 2});
+  const start = point(0); await p.mouse.move(start.x, start.y); await p.mouse.down();
+  try {
+    const quarter = point(.25); await p.mouse.move(quarter.x, quarter.y, {steps: 8});
+    await p.waitForFunction(low => {
+      const head = document.querySelector('#hardWordCloud text[data-rank="1"]');
+      const tail = document.querySelector('#hardWordCloud text[data-rank="30"]');
+      return parseFloat(getComputedStyle(head).fontSize) > low * 1.4 && parseFloat(getComputedStyle(tail).fontSize) < low * .98;
+    }, low);
+    assert.equal(await p.evaluate(() => window.cloudDragHeld), true);
+    const first = await snapshot();
+    const high = point(.9); await p.mouse.move(high.x, high.y, {steps: 12});
+    await p.waitForFunction(first => {
+      const head = document.querySelector('#hardWordCloud text[data-rank="1"]');
+      const tail = document.querySelector('#hardWordCloud text[data-rank="30"]');
+      return parseFloat(getComputedStyle(head).fontSize) > first.head * 1.05 && parseFloat(getComputedStyle(tail).fontSize) < first.tail * .85;
+    }, first);
+    assert.equal(await p.evaluate(() => window.cloudDragHeld), true);
+    await cloudReady(p); const strong = await snapshot();
+    assert.ok(strong.tail < low * .6); assert.ok(strong.head / strong.tail > 4);
+    // Several reversals must leave the cloud on the latest input, not stale work.
+    for (const fraction of [.1, .85, .35]) { const next = point(fraction); await p.mouse.move(next.x, next.y, {steps: 4}); }
+    await cloudReady(p);
+    assert.equal(await p.evaluate(() => window.cloudDragHeld), true);
+    const labels = await p.locator('#focusRanks li').allTextContents();
+    const shown = await cloud.locator('text').evaluateAll(nodes => nodes.map(node => ({word: node.dataset.word, rank: Number(node.dataset.rank), p: Number(node.dataset.probability)})));
+    for (const row of shown) assert.ok(labels[row.rank - 1].startsWith(`#${row.rank} ${row.word} · ${(row.p * 100).toFixed(2)}%`));
+    assert.deepEqual(await p.locator('#streamText').evaluate(node => ({html: node.innerHTML, transform: node.style.transform})), track);
+    assert.deepEqual(contents(await data(p)), history);
+  } finally { await p.mouse.up(); }
+  await p.locator('#difficultyFocus').focus(); await p.keyboard.press('Home'); await cloudReady(p);
+  await cloud.screenshot({path: '/tmp/typist-cloud-contrast-low.png'});
+  await p.keyboard.press('End'); await cloudReady(p);
+  await cloud.screenshot({path: '/tmp/typist-cloud-contrast-high.png'});
 });

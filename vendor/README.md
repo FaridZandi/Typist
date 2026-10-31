@@ -35,8 +35,10 @@ excluded from practice backups. Corrupt/denied storage falls back to determinist
 homes and in-memory anchors; it never blocks typing. Resizing words can still
 require local collision adjustments, and new viewport sizes get their own layout.
 Font sizes come from the same before-cooldown probability distribution as the
-focus plot, using `src/stream/cloud-sizing.js` for a bounded square-root scale.
-Focus changes resize words through D3 transitions without replacing their nodes.
+focus plot, compared with their exploration baseline by the bounded contrast
+scale in `src/stream/cloud-sizing.js`. Focus input is coalesced per frame with
+80ms linear D3 transitions so the cloud responds while dragging; recorded updates
+keep the normal 420ms transition. Word nodes and anchors are retained.
 
 Commit regenerated assets with dependency changes. Stream imports these
 local files directly; serving the repository needs neither node_modules nor

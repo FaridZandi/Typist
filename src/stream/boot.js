@@ -19,13 +19,13 @@ try { preferenceStorage = window.localStorage; } catch { /* Storage may be denie
 let focusPreference = readFocus(preferenceStorage);
 let focusPersisted = true;
 const renderFocusControl = createFocusControl($('focusControl'), focusPreference, value => {
-  focusPreference = value; focusPersisted = saveFocus(preferenceStorage, value); renderFocus();
+  focusPreference = value; focusPersisted = saveFocus(preferenceStorage, value); renderFocus({interactive: true});
 });
 // Preview the policy before recent-word exclusions; real draws retain cooldown.
-function renderFocus() {
+function renderFocus({interactive = false} = {}) {
   const distribution = wordProbabilities(WORDS, summaries, [], focusPreference);
   renderFocusControl(distribution, Boolean(practiceWords.size), focusPersisted);
-  wordCloud.update(distribution);
+  wordCloud.update(distribution, {interactive});
 }
 const percentage = (clean, count) => count ? `${Math.round(clean / count * 100)}%` : '—';
 const element = (tag, className, text) => { const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined) node.textContent = text; return node; };

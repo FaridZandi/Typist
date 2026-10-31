@@ -1,7 +1,12 @@
-// Use the full before-cooldown probability, with a readable floor and an upper
-// bound. Squared font size grows with probability until the 50% display cap;
-// this avoids making visual area grow quadratically with selection likelihood.
-export function cloudFontSize(probability, maximum = 58) {
-  const share = Number.isFinite(probability) ? Math.max(0, Math.min(1, probability / .5)) : 0;
-  return Math.sqrt(13 ** 2 + (maximum ** 2 - 13 ** 2) * share);
+// Compare full selection probability with the same word's exploration baseline.
+// The squared ratio exaggerates concentration while the bounded response avoids
+// giant outliers. Equal-to-baseline words are 28px (22px compact); tails can shrink
+// toward 9px instead of getting visually stuck against the old 13px floor.
+export function cloudFontSize(probability, baselineProbability, compact = false) {
+  const minimum = 9, neutral = compact ? 22 : 28, maximum = compact ? 64 : 84;
+  const ratio = Number.isFinite(probability) && Number.isFinite(baselineProbability) && baselineProbability > 0
+    ? Math.max(0, probability / baselineProbability) : 0;
+  if (!Number.isFinite(ratio)) return maximum;
+  const calibration = (maximum - neutral) / (neutral - minimum);
+  return minimum + (maximum - minimum) / (1 + calibration / ratio ** 2);
 }

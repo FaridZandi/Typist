@@ -1,6 +1,6 @@
 # Typist — agent orientation
 
-Last verified: **2026-10-30** (probability-driven cloud sizing; stable anchors reviewed 2026-10-25; baseline orientation reviewed 2026-10-11).
+Last verified: **2026-10-31** (stronger probability contrast and live dragging; stable anchors reviewed 2026-10-25; baseline orientation reviewed 2026-10-11).
 Read [AGENTS.md](AGENTS.md) and the canonical [TODO.md](TODO.md) before work.
 This brief is orientation; task status and acceptance criteria live in TODO.
 
@@ -135,13 +135,17 @@ Clearing site data can delete it; there is no automatic off-device backup.
   within the vocabulary, with the same score-descending/alphabetical ordering
   as difficulty rank and the table. It receives the same before-cooldown
   distribution as the plot, computed once per refresh; focus slider changes
-  animate word sizes immediately. Font size is
-  `sqrt(13^2 + (max^2 - 13^2) * min(P / 0.5, 1))`, using full vocabulary-wide
-  probability P (max 58px, 42px in compact layouts). This keeps a readable floor,
-  makes larger probabilities more prominent, and caps size at 50% probability.
-  Equal probabilities give equal sizes; tooltips show the projected percentage.
-  Deterministic horizontal placement limits clutter.
-  D3 animates entry, exit, position and size for 420ms; reduced motion skips it.
+  resize the cloud during dragging. Font size compares full probability P with
+  that word's exploration probability B from the same calculation: r=P/B,
+  size=9+(max-9)*r^2/(r^2+k), k=(max-neutral)/(neutral-9). Neutral/max are
+  28/84px on desktop and 22/64px in compact layouts. This exaggerates the head
+  and lets the tail visibly shrink toward 9px instead of sticking near 13px.
+  No probabilities are renormalized among displayed words; tooltips retain the
+  full projected percentage. A common fit scale accommodates word length and
+  padded text area, with a final 9px floor. Deterministic horizontal placement
+  limits clutter. Slider input coalesces to the latest value per animation frame
+  with an 80ms linear D3 transition; recorded updates use 420ms easing, and
+  reduced motion skips animation.
   Words keep their own anchors and placement order through rank changes; local
   collision adjustments are allowed. Unchanged probabilities and ranks retain
   their layout.
@@ -239,6 +243,14 @@ Browser acceptance compares cloud percentages with the plot, verifies live
 focus-driven entry/size animation, preserved node identity, input/track/history,
 reload and compact/reduced-motion behavior. Existing anchor stability and glyph
 non-overlap checks pass; low/high and mobile screenshots were inspected.
+
+Verification on 2026-10-31: 110 Node tests and 26 Chromium Stream tests passed.
+Contrast checks span 3/30/100/470 hard-word pools and compact sizing. A real held
+mouse drag verifies head growth and tail shrink before pointer release, rapid
+reversals settle on the latest curve, and typing/history stay unchanged. Dense
+bounds, reloads, glyph non-overlap and reduced motion pass. Larger headlines can
+need greater local collision moves: the stability fixture keeps median movement
+under 20px and 90% under 65px, with an overall bound of 170px. Screenshots reviewed.
 
 ## Maintenance
 

@@ -25,11 +25,20 @@ export class HardWordCloud {
     this.observer.observe(root);
   }
 
-  update(distribution) {
+  update(distribution, {interactive = false} = {}) {
     this.words = distribution.ranked.filter(word => word.reliable)
-      .map(word => ({text: word.word, rank: word.rank, probability: word.probability}));
+      .map(word => ({text: word.word, rank: word.rank, probability: word.probability, baselineProbability: word.baselineProbability}));
     this.updateCaption();
-    this.layout();
+    if (this.frame) cancelAnimationFrame(this.frame);
+    if (interactive) {
+      // Coalesce rapid input and always lay out the latest distribution.
+      this.root.dataset.pending = 'true';
+      this.frame = requestAnimationFrame(() => {
+        this.frame = null; delete this.root.dataset.pending; this.layout(true);
+      });
+    } else {
+      this.frame = null; delete this.root.dataset.pending; this.layout();
+    }
   }
 
   updateCaption() {
@@ -38,7 +47,7 @@ export class HardWordCloud {
     this.caption.textContent = `${label} · size follows probability`;
   }
 
-  layout() {
+  layout(interactive = false) {
     if (this.words.length) this.root.hidden = false;
     const width = Math.floor(this.root.clientWidth);
     const compact = width < 500;
@@ -50,7 +59,7 @@ export class HardWordCloud {
     const generation = ++this.generation;
     this.pending?.stop();
     this.svg.selectAll('text').interrupt();
-    const duration = this.motion.matches ? 0 : 420;
+    const duration = this.motion.matches ? 0 : interactive ? 80 : 420;
     this.root.setAttribute('aria-busy', 'true');
     const finish = () => {
       if (generation !== this.generation) return;
@@ -65,14 +74,17 @@ export class HardWordCloud {
     }
     this.svg.attr('viewBox', `0 0 ${width} ${height}`).style('height', `${height}px`);
     const context = document.createElement('canvas').getContext('2d');
-    const maximum = compact ? 42 : 58;
     // Fit long words without letting the layout silently omit the hardest one.
-    let fit = 1;
+    let fit = 1, area = 0;
     for (const word of words) {
-      word.size = cloudFontSize(word.probability, maximum);
+      word.size = cloudFontSize(word.probability, word.baselineProbability, compact);
       context.font = `600 ${word.size}px ${FONT}`;
-      fit = Math.min(fit, (width - 40) / context.measureText(word.text).width);
+      const textWidth = context.measureText(word.text).width;
+      fit = Math.min(fit, (width - 40) / textWidth);
+      area += (textWidth + 10) * (word.size + 10);
     }
+    // Leave breathing room for the library’s padded collision masks.
+    fit = Math.min(fit, Math.sqrt(width * height * .55 / area));
     const layoutKey = `${width}x${height}`;
     const homes = this.cache.get(layoutKey);
     const order = new Map([...homes.keys()].map((word, i) => [word, i]));
@@ -80,7 +92,7 @@ export class HardWordCloud {
     const hash = text => { let value = 2166136261; for (const letter of text) value = Math.imul(value ^ letter.charCodeAt(0), 16777619); return value >>> 0; };
     const random = () => { seed = (1664525 * seed + 1013904223) >>> 0; return seed / 2 ** 32; };
     this.pending = d3.layout.cloud().size([width, height]).words(words.map(word => ({...word})))
-      .font(FONT).fontWeight(600).fontSize(word => word.size * fit).padding(5).rotate(0)
+      .font(FONT).fontWeight(600).fontSize(word => Math.max(9, word.size * fit)).padding(5).rotate(0)
       .random(random).sort((a, b) => (order.get(a.text) ?? Infinity) - (order.get(b.text) ?? Infinity) || (a.text < b.text ? -1 : a.text > b.text ? 1 : 0))
       .initialPosition(word => {
         // Home positions and spiral direction belong to the word, not its rank.
@@ -110,7 +122,7 @@ export class HardWordCloud {
         if (!duration) { exits.remove(); targets(current); finish(); }
         else {
           exits.transition().duration(duration).style('opacity', 0).style('font-size', '1px').remove();
-          targets(current.transition().duration(duration).ease(d3.easeCubicInOut)).end().then(finish).catch(() => {});
+          targets(current.transition().duration(duration).ease(interactive ? d3.easeLinear : d3.easeCubicInOut)).end().then(finish).catch(() => {});
         }
       }).start();
   }
