@@ -1,6 +1,6 @@
 # Typist — agent orientation
 
-Last verified: **2026-10-31** (stronger probability contrast and live dragging; stable anchors reviewed 2026-10-25; baseline orientation reviewed 2026-10-11).
+Last verified: **2026-10-31** (cloud/table rank consistency, stronger probability contrast and live dragging; stable anchors reviewed 2026-10-25; baseline orientation reviewed 2026-10-11).
 Read [AGENTS.md](AGENTS.md) and the canonical [TODO.md](TODO.md) before work.
 This brief is orientation; task status and acceptance criteria live in TODO.
 
@@ -140,15 +140,19 @@ Clearing site data can delete it; there is no automatic off-device backup.
   size=9+(max-9)*r^2/(r^2+k), k=(max-neutral)/(neutral-9). Neutral/max are
   28/84px on desktop and 22/64px in compact layouts. This exaggerates the head
   and lets the tail visibly shrink toward 9px instead of sticking near 13px.
+  Above baseline, the excess over neutral is scaled by
+  ((r-1)/(rMax-1))^0.6 using the highest displayed ratio, keeping the head distinct
+  when the bounded response saturates. Tail sizing stays unchanged.
   No probabilities are renormalized among displayed words; tooltips retain the
   full projected percentage. A common fit scale accommodates word length and
   padded text area, with a final 9px floor. Deterministic horizontal placement
   limits clutter. Slider input coalesces to the latest value per animation frame
   with an 80ms linear D3 transition; recorded updates use 420ms easing, and
   reduced motion skips animation.
-  Words keep their own anchors and placement order through rank changes; local
-  collision adjustments are allowed. Unchanged probabilities and ranks retain
-  their layout.
+  Words keep their own anchors through rank changes. The hardest word is packed
+  first so a new/promoted rank one cannot be omitted by a full cached layout;
+  other words retain cached placement order. Local collision adjustments are
+  allowed. Unchanged probabilities and ranks retain their layout.
   Recorded outcomes, restore/retry
   and resize refresh the cloud; unrecorded practice does not affect it. The cloud
   is hidden without supported trouble. It lays out the top 48 words (24 below
@@ -251,6 +255,16 @@ reversals settle on the latest curve, and typing/history stay unchanged. Dense
 bounds, reloads, glyph non-overlap and reduced motion pass. Larger headlines can
 need greater local collision moves: the stability fixture keeps median movement
 under 20px and 90% under 65px, with an overall bound of 170px. Screenshots reviewed.
+
+Cloud rank-consistency verification on 2026-10-31: 110 Node and 27 Chromium tests
+passed. A dense synthetic history reproduces and covers a new hardest word being
+omitted by cached-first packing. New/promoted rank one now stays visible with the
+largest font at desktop/390px widths, across reloads and low/high focus changes.
+A shared peak factor prevents leading sizes saturating to equal fonts; the
+new browser fixture checks over 1.4x first/second font contrast at high focus.
+Existing stable-anchor, collision, tail shrink, live dragging and Stream
+regressions pass; desktop/mobile screenshots inspected. Pure exploration gives
+equal sizes; lower-ranked fonts can tie from integer rounding/floors.
 
 ## Maintenance
 

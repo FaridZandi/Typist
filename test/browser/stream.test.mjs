@@ -712,3 +712,43 @@ test('held-pointer slider dragging visibly grows the head and shrinks the tail b
   await p.keyboard.press('End'); await cloudReady(p);
   await cloud.screenshot({path: '/tmp/typist-cloud-contrast-high.png'});
 });
+
+test('new and promoted hardest table words stay visible and largest in a packed cloud', async t => {
+  for (const width of [390, 1280]) {
+    const p = await page(t, {width, height: 900});
+    await seedCloud(p, 100);
+    await p.locator('#difficultyFocus').focus(); await p.keyboard.press('End'); await cloudReady(p);
+    // First introduce an uncached long word, then promote an existing anchor.
+    for (const word of ['information', 'back']) {
+      await p.evaluate(async word => {
+        const {StreamStore} = await import('/src/stream/storage.js');
+        const {WordAttempt} = await import('/src/stream/model.js');
+        const store = await StreamStore.open();
+        for (let i = 0; i < 4; i++) {
+          const attempt = new WordAttempt({word, source: 'broad'}, 'test');
+          attempt.key('x', 0);
+          await store.save({...attempt.key(' ', 100), id: crypto.randomUUID()});
+        }
+        store.db.close(); document.getElementById('retrySave').click();
+      }, word);
+      await p.waitForFunction(word => document.querySelector('#wordList .word-name')?.textContent === word, word);
+      await cloudReady(p);
+      const check = async () => {
+        const sizes = await p.locator('#hardWordCloud text').evaluateAll(nodes => nodes.map(node => ({word: node.dataset.word, rank: +node.dataset.rank, size: parseFloat(getComputedStyle(node).fontSize)})).sort((a, b) => a.rank - b.rank));
+        assert.equal(sizes[0]?.word, word, `rank one must be placed at ${width}px`);
+        assert.equal(sizes[0].rank, 1);
+        assert.equal(sizes[0].size, Math.max(...sizes.map(word => word.size)));
+        assert.ok(sizes.every((entry, i) => !i || entry.size <= sizes[i - 1].size));
+        if (await p.locator('#difficultyFocus').inputValue() === '100') {
+          assert.ok(sizes[0].size > sizes[1].size * 1.4, JSON.stringify(sizes.slice(0, 2)));
+        }
+      };
+      await check();
+      await p.reload(); await p.waitForFunction(() => !document.getElementById('streamInput').disabled); await cloudReady(p);
+      await check();
+      await p.locator('#difficultyFocus').focus(); await p.keyboard.press('Home'); await cloudReady(p); await check();
+      await p.keyboard.press('End'); await cloudReady(p); await check();
+    }
+    await p.locator('#hardWordCloud').screenshot({path: `/tmp/typist-cloud-rank-${width}.png`});
+  }
+});

@@ -62,13 +62,25 @@ square-root mapping hid tail changes close to its 13px floor. Size and area are
 therefore intentionally not literal probability encodings; tooltips keep the
 full projected percentage to two decimals.
 
+For words above their exploration baseline, retain only the excess size above
+neutral multiplied by `((r-1)/(rMax-1))^0.6`, where rMax is the highest displayed
+P/B. This separates leading probabilities that otherwise all saturate near the
+maximum (and round to identical fonts) in a large practiced pool. The head keeps
+its previous contrast response; below-baseline tail sizing stays unchanged.
+The mapping is monotonic, continuous at baseline and smooth as focus leaves zero;
+this is a shared visual scale, without changing probabilities or sampling.
+
 Long words and dense clouds get a common fit scale (including a padded text-area
 estimate at 55% of the viewport), followed by a final 9px floor. The library
 rounds sizes to integers. Slider input is coalesced to the latest value per
 animation frame with 80ms linear transitions, so it updates while dragging,
 rather than repeatedly restarting a slow easing curve. Recorded outcomes retain
 420ms animation; reduced motion skips transitions. Cached anchors stay in use,
-with local collision adjustments when the larger text needs room. Practice-set
+with local collision adjustments when the larger text needs room. Rank one is
+placed first to reserve room for the largest word, including a newly introduced
+or promoted hardest word; other cached words keep their placement order. Font
+caps/floors and integer rounding can give adjacent ranks equal sizes, and flat
+exploration deliberately gives all words equal sizes. Practice-set
 mode still overrides sampling and disables the control.
 
 The preview uses current tab summaries and preference before cooldown; it is

@@ -26,8 +26,10 @@ these accessors the upstream behavior remains the default. The script fails if
 any exact patch location no longer matches the pinned source.
 
 Typist uses a deterministic home and spiral seed per word, and reuses settled
-anchors in stable placement order. It no longer assigns positions by changing
-rank or recenters the whole cloud after each layout. A bounded, tab-scoped
+anchors in stable placement order, with the hardest word placed first so cached
+tail words cannot crowd out a newly entered/promoted rank one. It no longer
+assigns positions by changing rank or recenters the whole cloud after each
+layout. A bounded, tab-scoped
 `sessionStorage` cache (`typist-stream-cloud-layout-v1`, up to three viewport
 layouts with 48 words each) restores anchors across reloads and viewport returns.
 This optional visual state contains word names and coordinates only; it is
@@ -36,8 +38,9 @@ homes and in-memory anchors; it never blocks typing. Resizing words can still
 require local collision adjustments, and new viewport sizes get their own layout.
 Font sizes come from the same before-cooldown probability distribution as the
 focus plot, compared with their exploration baseline by the bounded contrast
-scale in `src/stream/cloud-sizing.js`. Focus input is coalesced per frame with
-80ms linear D3 transitions so the cloud responds while dragging; recorded updates
+scale in `src/stream/cloud-sizing.js`, with a shared peak scale above baseline
+to keep leading probabilities visibly distinct even in dense histories. Focus
+input is coalesced per frame with 80ms linear D3 transitions so the cloud responds while dragging; recorded updates
 keep the normal 420ms transition. Word nodes and anchors are retained.
 
 Commit regenerated assets with dependency changes. Stream imports these

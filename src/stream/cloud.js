@@ -75,9 +75,10 @@ export class HardWordCloud {
     this.svg.attr('viewBox', `0 0 ${width} ${height}`).style('height', `${height}px`);
     const context = document.createElement('canvas').getContext('2d');
     // Fit long words without letting the layout silently omit the hardest one.
+    const peakProbability = Math.max(...words.map(word => word.probability));
     let fit = 1, area = 0;
     for (const word of words) {
-      word.size = cloudFontSize(word.probability, word.baselineProbability, compact);
+      word.size = cloudFontSize(word.probability, word.baselineProbability, compact, peakProbability);
       context.font = `600 ${word.size}px ${FONT}`;
       const textWidth = context.measureText(word.text).width;
       fit = Math.min(fit, (width - 40) / textWidth);
@@ -93,7 +94,11 @@ export class HardWordCloud {
     const random = () => { seed = (1664525 * seed + 1013904223) >>> 0; return seed / 2 ** 32; };
     this.pending = d3.layout.cloud().size([width, height]).words(words.map(word => ({...word})))
       .font(FONT).fontWeight(600).fontSize(word => Math.max(9, word.size * fit)).padding(5).rotate(0)
-      .random(random).sort((a, b) => (order.get(a.text) ?? Infinity) - (order.get(b.text) ?? Infinity) || (a.text < b.text ? -1 : a.text > b.text ? 1 : 0))
+      // Reserve space for the hardest word before reusing the cached order. A
+      // newly promoted/entered headline must never lose its place to the tail.
+      .random(random).sort((a, b) => Number(b.rank === 1) - Number(a.rank === 1)
+        || (order.get(a.text) ?? Infinity) - (order.get(b.text) ?? Infinity)
+        || (a.text < b.text ? -1 : a.text > b.text ? 1 : 0))
       .initialPosition(word => {
         // Home positions and spiral direction belong to the word, not its rank.
         seed = hash(word.text);
