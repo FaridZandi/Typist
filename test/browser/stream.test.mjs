@@ -613,3 +613,45 @@ test('cloud anchors survive reloads and rank changes without repacking the whole
   await reload(); const withoutStorage = await snapshot();
   await reload(); assert.deepEqual(await snapshot(), withoutStorage);
 });
+
+test('difficulty focus animates cloud prominence from the same probability curve while preserving the stream', async t => {
+  const p = await page(t); await seedCloud(p, 30);
+  const cloud = p.locator('#hardWordCloud');
+  const snapshot = () => cloud.locator('text').evaluateAll(nodes => nodes.map(node => ({word: node.dataset.word, rank: Number(node.dataset.rank), probability: Number(node.dataset.probability), size: parseFloat(node.style.fontSize)})).sort((a, b) => a.rank - b.rank));
+  const balanced = await snapshot();
+  const saved = contents(await data(p));
+  await p.locator('#streamInput').focus();
+  const current = await p.locator('#currentWordAccessible').textContent(); await p.keyboard.type(current[0]);
+  const track = await p.locator('#streamText').evaluate(node => ({html: node.innerHTML, transform: node.style.transform}));
+  await p.evaluate(() => { window.probabilityCloudWord = document.querySelector('#hardWordCloud text[data-rank="1"]'); });
+  await p.locator('#difficultyFocus').focus(); await p.keyboard.press('Home'); await cloudReady(p);
+  const low = await snapshot(); assert.equal(new Set(low.map(word => word.size)).size, 1);
+  await cloud.screenshot({path: '/tmp/typist-cloud-focus-low.png'});
+  await p.keyboard.press('End');
+  await p.waitForFunction(() => Number(document.querySelector('#hardWordCloud text[data-rank="1"]')?.dataset.probability) > .2);
+  assert.equal(await cloud.locator('text[data-rank="1"]').evaluate(node => Boolean(node.__transition)), true);
+  await cloudReady(p); const high = await snapshot();
+  assert.ok(low[0].size < balanced[0].size && balanced[0].size < high[0].size);
+  assert.ok(low.at(-1).size > high.at(-1).size);
+  const labels = await p.locator('#focusRanks li').allTextContents();
+  for (const row of high) {
+    assert.ok(labels[row.rank - 1].startsWith(`#${row.rank} ${row.word} · ${(row.probability * 100).toFixed(2)}%`));
+  }
+  assert.match(await cloud.locator('text[data-rank="1"] title').textContent(), new RegExp(`${(high[0].probability * 100).toFixed(2)}% before cooldown`));
+  assert.equal(await p.evaluate(() => window.probabilityCloudWord === document.querySelector('#hardWordCloud text[data-rank="1"]')), true);
+  assert.deepEqual(await p.locator('#streamText').evaluate(node => ({html: node.innerHTML, transform: node.style.transform})), track);
+  assert.deepEqual(contents(await data(p)), saved);
+  await cloud.screenshot({path: '/tmp/typist-cloud-focus-high.png'});
+  await p.reload(); await p.waitForFunction(() => !document.getElementById('streamInput').disabled); await cloudReady(p);
+  assert.deepEqual(await snapshot(), high);
+  await p.setViewportSize({width: 390, height: 844});
+  await p.waitForFunction(() => Number(document.querySelector('#hardWordCloud svg').getAttribute('viewBox').split(' ')[2]) < 500); await cloudReady(p);
+  const narrow = await snapshot(); assert.ok(narrow[0].size > narrow.at(-1).size);
+  assert.equal(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await cloud.screenshot({path: '/tmp/typist-cloud-focus-mobile.png'});
+  await p.emulateMedia({reducedMotion: 'reduce'}); await cloudReady(p);
+  await p.locator('#difficultyFocus').focus(); await p.keyboard.press('Home'); await cloudReady(p);
+  assert.equal(new Set((await snapshot()).map(word => word.size)).size, 1);
+  assert.equal(await cloud.locator('text').evaluateAll(nodes => nodes.some(node => Boolean(node.__transition))), false);
+  assert.deepEqual(contents(await data(p)), saved);
+});

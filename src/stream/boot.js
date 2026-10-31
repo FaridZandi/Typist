@@ -22,7 +22,11 @@ const renderFocusControl = createFocusControl($('focusControl'), focusPreference
   focusPreference = value; focusPersisted = saveFocus(preferenceStorage, value); renderFocus();
 });
 // Preview the policy before recent-word exclusions; real draws retain cooldown.
-function renderFocus() { renderFocusControl(wordProbabilities(WORDS, summaries, [], focusPreference), Boolean(practiceWords.size), focusPersisted); }
+function renderFocus() {
+  const distribution = wordProbabilities(WORDS, summaries, [], focusPreference);
+  renderFocusControl(distribution, Boolean(practiceWords.size), focusPersisted);
+  wordCloud.update(distribution);
+}
 const percentage = (clean, count) => count ? `${Math.round(clean / count * 100)}%` : '—';
 const element = (tag, className, text) => { const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined) node.textContent = text; return node; };
 
@@ -63,7 +67,6 @@ $('clearPractice').addEventListener('click', () => { setPractice([]); input.focu
 
 function renderStats() {
   renderFocus();
-  wordCloud.update(summaries);
   const today = days.get(dayKey(Date.now())) || emptyTotals();
   $('todayWords').textContent = today.attempts.toLocaleString(); $('todayClean').textContent = percentage(today.clean, today.attempts);
   $('allWords').textContent = totals.attempts.toLocaleString();

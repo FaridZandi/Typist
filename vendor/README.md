@@ -34,7 +34,11 @@ This optional visual state contains word names and coordinates only; it is
 excluded from practice backups. Corrupt/denied storage falls back to deterministic
 homes and in-memory anchors; it never blocks typing. Resizing words can still
 require local collision adjustments, and new viewport sizes get their own layout.
- Commit regenerated assets with dependency changes. Stream imports these
+Font sizes come from the same before-cooldown probability distribution as the
+focus plot, using `src/stream/cloud-sizing.js` for a bounded square-root scale.
+Focus changes resize words through D3 transitions without replacing their nodes.
+
+Commit regenerated assets with dependency changes. Stream imports these
 local files directly; serving the repository needs neither node_modules nor
 network access to a CDN. No practice words leave the browser.
 

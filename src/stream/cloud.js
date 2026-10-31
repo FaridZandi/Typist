@@ -1,6 +1,6 @@
 import '../../vendor/d3-7.9.0.min.js';
 import '../../vendor/d3-cloud-1.2.7.js';
-import {compareDifficulty, troubleScore} from './model.js';
+import {cloudFontSize} from './cloud-sizing.js';
 import {CloudLayoutCache} from './cloud-layout-cache.js';
 
 const d3 = globalThis.d3;
@@ -25,9 +25,9 @@ export class HardWordCloud {
     this.observer.observe(root);
   }
 
-  update(summaries) {
-    this.words = [...summaries.values()].filter(word => troubleScore(word) > 0).sort(compareDifficulty)
-      .map((word, i) => ({text: word.word, rank: i + 1}));
+  update(distribution) {
+    this.words = distribution.ranked.filter(word => word.reliable)
+      .map(word => ({text: word.word, rank: word.rank, probability: word.probability}));
     this.updateCaption();
     this.layout();
   }
@@ -35,7 +35,7 @@ export class HardWordCloud {
   updateCaption() {
     const count = this.placedCount || 0;
     const label = count < this.words.length ? `Hardest words · ${count} of ${this.words.length}` : 'Hardest words';
-    this.caption.textContent = `${label} · larger means harder`;
+    this.caption.textContent = `${label} · size follows probability`;
   }
 
   layout() {
@@ -69,7 +69,7 @@ export class HardWordCloud {
     // Fit long words without letting the layout silently omit the hardest one.
     let fit = 1;
     for (const word of words) {
-      word.size = 13 + (maximum - 13) / word.rank ** .45;
+      word.size = cloudFontSize(word.probability, maximum);
       context.font = `600 ${word.size}px ${FONT}`;
       fit = Math.min(fit, (width - 40) / context.measureText(word.text).width);
     }
@@ -94,7 +94,7 @@ export class HardWordCloud {
         const offsetX = width >> 1;
         const offsetY = height >> 1;
         this.cache.set(layoutKey, placed.map(word => ({text: word.text, x: word.x + offsetX, y: word.y + offsetY})));
-        this.svg.attr('aria-label', `${placed.length} hard words, sized by difficulty rank. ${placed.slice(0, 5).map(word => `${word.text}, rank ${word.rank}`).join('; ')}. Full history and practice actions in the table below.`);
+        this.svg.attr('aria-label', `${placed.length} hard words, sized by selection probability before cooldown. ${placed.slice(0, 5).map(word => `${word.text}, rank ${word.rank}`).join('; ')}. Full history and practice actions in the table below.`);
         const selection = this.svg.selectAll('text').data(placed, word => word.text);
         const exits = selection.exit();
         const entered = selection.enter().append('text').attr('text-anchor', 'middle')
@@ -102,8 +102,8 @@ export class HardWordCloud {
           .style('font-size', duration ? '1px' : word => `${word.size}px`).style('opacity', duration ? 0 : 1)
           .text(word => word.text);
         entered.append('title');
-        const current = entered.merge(selection).attr('data-word', word => word.text).attr('data-rank', word => word.rank);
-        current.select('title').text(word => `${word.text} · difficulty rank ${word.rank}`);
+        const current = entered.merge(selection).attr('data-word', word => word.text).attr('data-rank', word => word.rank).attr('data-probability', word => word.probability);
+        current.select('title').text(word => `${word.text} · rank ${word.rank} · ${(word.probability * 100).toFixed(2)}% before cooldown`);
         const targets = node => node.attr('x', word => offsetX + word.x).attr('y', word => offsetY + word.y)
           .style('font-size', word => `${word.size}px`).style('opacity', 1)
           .attr('fill', word => d3.interpolateRgb('#0b5f59', '#728f96')(Math.min(1, (word.rank - 1) / 35)));

@@ -1,8 +1,9 @@
 # Difficulty focus policy (TYP-023)
 
-Verified design: 2026-10-23. `wordProbabilities` in `src/stream/model.js` is the
-single source of probabilities for both the sampler and the SVG/table preview.
-No chart library or runtime dependency is added.
+Verified design: 2026-10-30. `wordProbabilities` in `src/stream/model.js` is the
+single source of probabilities for the sampler, SVG/table preview and word
+cloud. The plot uses native SVG; the cloud uses the local D3/d3-cloud stack
+documented in [vendor ownership](../vendor/README.md).
 
 For focus t in [0,1], use P(w) = (1-a) B(w) + a H(w), a = 0.6t.
 The default t=.5 retains the previous 30% targeted share, though the broad and
@@ -46,6 +47,20 @@ not ranked; their combined mass and remaining count are shown separately.
 An empty history has no rank curve and 100% unseen mass. An exhausted unseen
 pool shows 0% discovery. A singleton is a point. The scrollable ranked list
 provides every word/value without needing a mouse tooltip.
+
+The hard-word cloud receives the very same before-cooldown distribution object
+as the plot, filtered to words with supported trouble. Its font size is
+`sqrt(13^2 + (max^2 - 13^2) * min(P / 0.5, 1))`, max 58px (42px compact),
+using full vocabulary-wide P including broad and targeted mass. It does not
+renormalize probabilities among displayed words. Squared font size grows
+linearly with P until the 50% size cap, retaining a readable 13px floor;
+actual glyph area also depends on word length. Long words can uniformly scale
+the cloud down to fit. Font sizes are integer-rounded by d3-cloud. A flat
+exploration curve gives equal sizes; stronger focus increases prominence of
+the most likely words. This is visual calibration rather than a second sampling
+policy. Slider changes animate sizes while keeping cached anchors where they
+fit; tooltips show exact projected percentages to two decimals. Practice-set
+mode still overrides sampling and disables the control.
 
 The preview uses current tab summaries and preference before cooldown; it is
 not the effective next-draw distribution or a forecast of the next completion's

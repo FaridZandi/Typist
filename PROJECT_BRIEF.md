@@ -1,6 +1,6 @@
 # Typist — agent orientation
 
-Last verified: **2026-10-25** (stable word-cloud anchors; live cloud and difficulty-focus policy reviewed 2026-10-23; baseline orientation reviewed 2026-10-11).
+Last verified: **2026-10-30** (probability-driven cloud sizing; stable anchors reviewed 2026-10-25; baseline orientation reviewed 2026-10-11).
 Read [AGENTS.md](AGENTS.md) and the canonical [TODO.md](TODO.md) before work.
 This brief is orientation; task status and acceptance criteria live in TODO.
 
@@ -68,8 +68,9 @@ use existing installations when available. No lint/build/deploy script is define
 - Stream: `src/stream/boot.js` owns input, queue and recovery UI; `model.js` owns
   attempts and the shared sampling/preview probability calculation, `focus.js` owns
   the difficulty control and its separate localStorage preference, `render.js` owns
-  continuous motion, `cloud.js` owns the live ranked word-cloud view and
-  `cloud-layout-cache.js` its optional visual anchors, `storage.js` owns
+  continuous motion, `cloud.js` owns the live word-cloud view, `cloud-sizing.js`
+  maps probabilities to font sizes, and `cloud-layout-cache.js` keeps optional
+  visual anchors; `storage.js` owns
   IndexedDB transactions/backup, and `words.js` owns versioned vocabulary.
 - Shared: `src/shared/keyboard-layout.js` and `keyboard-map.js` own Dvorak
   rendering and movement classification. Stream reuses `src/alignment.js`.
@@ -131,12 +132,19 @@ Clearing site data can delete it; there is no automatic off-device backup.
   alone. Persistent-storage permission is an explicit button, not a backup.
   See [storage](src/stream/storage.js) and [shipped design](thinking/stream-v1.md).
 - Stream shows a live word cloud above its word table, using supported trouble
-  only, with the same score-descending/alphabetical ordering as difficulty rank
-  and the table. Font size decreases as `13 + (max - 13) / rank^0.45` (max 58px,
-  42px in compact layouts); deterministic, horizontal placement limits clutter.
+  within the vocabulary, with the same score-descending/alphabetical ordering
+  as difficulty rank and the table. It receives the same before-cooldown
+  distribution as the plot, computed once per refresh; focus slider changes
+  animate word sizes immediately. Font size is
+  `sqrt(13^2 + (max^2 - 13^2) * min(P / 0.5, 1))`, using full vocabulary-wide
+  probability P (max 58px, 42px in compact layouts). This keeps a readable floor,
+  makes larger probabilities more prominent, and caps size at 50% probability.
+  Equal probabilities give equal sizes; tooltips show the projected percentage.
+  Deterministic horizontal placement limits clutter.
   D3 animates entry, exit, position and size for 420ms; reduced motion skips it.
   Words keep their own anchors and placement order through rank changes; local
-  collision adjustments are allowed. Unchanged ranks retain their layout.
+  collision adjustments are allowed. Unchanged probabilities and ranks retain
+  their layout.
   Recorded outcomes, restore/retry
   and resize refresh the cloud; unrecorded practice does not affect it. The cloud
   is hidden without supported trouble. It lays out the top 48 words (24 below
@@ -224,6 +232,13 @@ The stability regression checks repeated settled reload geometry before/after
 rank changes, limited live displacement, glyph non-overlap, mobile reload/desktop
 return, cache bounds and denied storage. Existing animation and Stream acceptance
 remain covered; synthetic desktop/mobile cloud screenshots were inspected.
+
+Verification on 2026-10-30: 110 Node tests and 25 Chromium Stream tests passed.
+Sizing tests cover equal/low/default/high probabilities and display limits.
+Browser acceptance compares cloud percentages with the plot, verifies live
+focus-driven entry/size animation, preserved node identity, input/track/history,
+reload and compact/reduced-motion behavior. Existing anchor stability and glyph
+non-overlap checks pass; low/high and mobile screenshots were inspected.
 
 ## Maintenance
 
